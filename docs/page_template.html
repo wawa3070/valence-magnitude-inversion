@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Valence–Magnitude Inversion — do LLM narrations of SHAP preserve the ranking?</title>
+<meta name="description" content="Project page and data explorer for the Valence–Magnitude Inversion experiment: LLM narrations of SHAP explanations re-order features by tone instead of importance.">
+<style>
+:root{
+  color-scheme: light;
+  --page:#f9f9f7; --surface:#fcfcfb; --surface-2:#f3f2ee;
+  --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+  --rule:#e1e0d9; --border:rgba(11,11,11,0.10);
+  --pos:#2a78d6; --neg:#e34948;
+  --pos-wash:rgba(42,120,214,0.12); --neg-wash:rgba(227,73,72,0.12);
+  --trap:#d03b3b; --ok:#0ca30c; --accent:#2a78d6;
+  --code-bg:#f3f2ee;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme: dark;
+    --page:#0d0d0d; --surface:#1a1a19; --surface-2:#222221;
+    --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+    --rule:#2c2c2a; --border:rgba(255,255,255,0.10);
+    --pos:#3987e5; --neg:#e66767;
+    --pos-wash:rgba(57,135,229,0.16); --neg-wash:rgba(230,103,103,0.16);
+    --trap:#e66767; --ok:#0ca30c; --accent:#3987e5;
+    --code-bg:#222221;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --page:#0d0d0d; --surface:#1a1a19; --surface-2:#222221;
+  --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+  --rule:#2c2c2a; --border:rgba(255,255,255,0.10);
+  --pos:#3987e5; --neg:#e66767;
+  --pos-wash:rgba(57,135,229,0.16); --neg-wash:rgba(230,103,103,0.16);
+  --trap:#e66767; --ok:#0ca30c; --accent:#3987e5;
+  --code-bg:#222221;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--page); color:var(--ink);
+  font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-text-size-adjust:100%;
+}
+a{color:var(--accent)}
+.wrap{max-width:1280px;margin:0 auto;padding:0 20px}
+header.top{border-bottom:1px solid var(--rule);background:var(--surface)}
+.top .wrap{padding-top:34px;padding-bottom:0}
+h1{font-size:clamp(24px,3.4vw,36px);line-height:1.15;margin:0 0 8px;letter-spacing:-0.02em}
+.tagline{color:var(--ink-2);font-size:17px;max-width:62ch;margin:0 0 14px}
+.links{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.links a{
+  display:inline-block;text-decoration:none;font-size:13px;font-weight:500;
+  color:var(--ink-2);background:var(--surface-2);border:1px solid var(--border);
+  padding:5px 11px;border-radius:999px;
+}
+.links a:hover{color:var(--ink);border-color:var(--muted)}
+nav.tabs{display:flex;gap:2px;flex-wrap:wrap}
+nav.tabs button{
+  font:inherit;font-size:14px;font-weight:500;color:var(--ink-2);
+  background:none;border:none;border-bottom:2px solid transparent;
+  padding:10px 14px;cursor:pointer;margin-bottom:-1px;
+}
+nav.tabs button:hover{color:var(--ink)}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+main{padding:28px 0 72px}
+section[hidden]{display:none}
+h2{font-size:22px;letter-spacing:-0.01em;margin:34px 0 10px}
+h3{font-size:16px;margin:22px 0 8px}
+p{margin:0 0 12px;max-width:74ch}
+.lede{font-size:16px}
+code,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.9em;
+  background:var(--code-bg);padding:1px 5px;border-radius:4px}
+pre{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;
+  padding:12px 14px;overflow-x:auto;font-size:12.5px;line-height:1.55;margin:0 0 12px}
+pre code{background:none;padding:0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin:0 0 16px}
+.card h3:first-child{margin-top:0}
+.grid{display:grid;gap:14px}
+@media(min-width:720px){.grid.g2{grid-template-columns:1fr 1fr}.grid.g4{grid-template-columns:repeat(4,1fr)}}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.stat .v{font-size:26px;font-weight:650;letter-spacing:-0.02em}
+.stat .k{font-size:12.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em}
+.tablewrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
+thead th{font-size:12px;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted);
+  font-weight:600;white-space:nowrap;position:sticky;top:0;background:var(--surface);z-index:1}
+tbody tr:last-child td{border-bottom:none}
+.num{font-variant-numeric:tabular-nums}
+ul,ol{margin:0 0 12px;padding-left:22px;max-width:74ch}
+li{margin:0 0 5px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+/* chips */
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:6px;padding:2px 7px;
+  font-size:12.5px;line-height:1.5;white-space:nowrap;border:1px solid var(--border);
+  background:var(--surface-2);margin:1px 3px 1px 0;font-variant-numeric:tabular-nums}
+.chip .sign{font-weight:650}
+.chip.pos{background:var(--pos-wash);border-color:transparent}
+.chip.pos .sign{color:var(--pos)}
+.chip.neg{background:var(--neg-wash);border-color:transparent}
+.chip.neg .sign{color:var(--neg)}
+.ord{display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+.ord .step{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:1px 8px 1px 5px;white-space:nowrap}
+.ord .step .i{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11px;
+  min-width:15px;text-align:right}
+.ord .step.moved{border-color:var(--trap);border-style:dashed}
+.legend .ord{display:inline-flex}
+.flag{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.flag.yes{color:var(--trap)}
+.flag.no{color:var(--ink-2);font-weight:500}
+.bar{display:inline-block;height:6px;border-radius:3px;vertical-align:middle}
+.bar.pos{background:var(--pos)}
+.bar.neg{background:var(--neg)}
+/* explorer layout */
+.explorer{display:grid;gap:16px;align-items:start}
+@media(min-width:1040px){.explorer{grid-template-columns:minmax(0,1fr) 330px}}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+.controls label{font-size:13px;color:var(--ink-2);display:inline-flex;align-items:center;gap:6px}
+.controls select,.controls input[type=search]{
+  font:inherit;font-size:13px;color:var(--ink);background:var(--surface);
+  border:1px solid var(--border);border-radius:7px;padding:5px 8px}
+.controls input[type=search]{min-width:180px}
+.count{font-size:12.5px;color:var(--muted);margin-left:auto}
+tbody tr.row{cursor:default}
+tbody tr.row:hover,tbody tr.row:focus-visible,tbody tr.row.active{background:var(--surface-2);outline:none}
+tbody tr.row.pinned{box-shadow:inset 3px 0 0 var(--accent)}
+.panel{position:sticky;top:12px;background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:16px 16px 18px}
+.panel h3{margin:0 0 4px;font-size:15px}
+.panel .sub{font-size:12.5px;color:var(--muted);margin:0 0 12px}
+.panel details{border-top:1px solid var(--rule);padding:8px 0 2px}
+.panel details:first-of-type{border-top:none}
+.panel summary{cursor:pointer;font-size:13px;font-weight:600;list-style:none;display:flex;
+  align-items:center;justify-content:space-between;gap:8px;padding:2px 0}
+.panel summary::-webkit-details-marker{display:none}
+.panel summary .tag{font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em}
+.panel pre{margin:6px 0 8px;font-size:11.5px;max-height:290px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.panel .note{font-size:12px;color:var(--muted);margin:0 0 8px}
+.hint{font-size:12.5px;color:var(--muted);margin:0 0 10px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--ink-2);margin:0 0 10px}
+.legend .k{display:inline-flex;align-items:center;gap:6px}
+.sw{width:10px;height:10px;border-radius:3px;display:inline-block}
+.sw.pos{background:var(--pos)}.sw.neg{background:var(--neg)}
+.paperhead{border-left:3px solid var(--accent);padding:2px 0 2px 14px;margin:0 0 18px}
+.kicker{font-size:11.5px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin:0 0 4px}
+.papertitle{font-size:21px;line-height:1.3;letter-spacing:-0.01em;margin:0 0 6px;max-width:60ch}
+table.results td,table.results th{padding:6px 12px}
+table.results thead th{text-transform:none;letter-spacing:0;font-size:12.5px}
+table.results .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.results tr.grp td{border-top:1px solid var(--rule)}
+table.results tbody td:first-child{font-weight:600;white-space:nowrap}
+ol.refs li{margin-bottom:6px;color:var(--ink-2)}
+footer{border-top:1px solid var(--rule);padding:22px 0 40px;color:var(--muted);font-size:13px}
+.themebtn{position:fixed;right:14px;bottom:14px;z-index:5;font:inherit;font-size:12.5px;
+  background:var(--surface);color:var(--ink-2);border:1px solid var(--border);
+  border-radius:999px;padding:6px 12px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+.themebtn:hover{color:var(--ink)}
+.callout{border-left:3px solid var(--accent);background:var(--surface);border-radius:0 10px 10px 0;
+  padding:14px 16px;margin:0 0 16px}
+.callout.trap{border-left-color:var(--trap)}
+.eq{font-variant-numeric:tabular-nums}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 14px;font-size:13px;margin:0 0 10px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <h1>Valence–Magnitude Inversion</h1>
+    <p class="tagline">Do LLM narrations of SHAP explanations preserve the importance ranking? Every stated fact can be correct while the <em>order</em> is silently wrong.</p>
+    <div class="links">
+      <a href="https://drive.google.com/file/d/11xksLHXSjtNmi58W8caQcoiCe3pm9tUd/view">Paper (PDF)</a>
+      <a href="https://github.com/wawa3070/valence-magnitude-inversion">GitHub repo</a>
+      <a href="https://github.com/wawa3070/valence-magnitude-inversion/blob/main/Inversion_Experiment.ipynb">Notebook</a>
+      <a href="https://colab.research.google.com/github/wawa3070/valence-magnitude-inversion/blob/main/Inversion_Experiment.ipynb">Open in Colab</a>
+      <a href="https://github.com/wawa3070/valence-magnitude-inversion/tree/main/data">Data</a>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true">Overview</button>
+      <button role="tab" id="tab-loan" aria-controls="panel-loan" aria-selected="false">Loan data explorer</button>
+      <button role="tab" id="tab-net" aria-controls="panel-net" aria-selected="false">Network traffic explorer</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ─────────────────────────── OVERVIEW ─────────────────────────── -->
+<section id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+  <div class="paperhead">
+    <p class="kicker">Paper</p>
+    <h2 class="papertitle" style="margin-top:0">When the Story Doesn't Match the Math: Runtime Verification of LLM-Narrated SHAP Explanations</h2>
+    <p class="small muted" style="margin-bottom:10px">Seven workhorse-tier models · two domains · 85 loan generations + 50 real-TreeSHAP alerts per model</p>
+  </div>
+
+  <p class="lede">Production ML systems increasingly use LLMs to translate SHAP attributions into plain-English explanations for applicants, operators, and auditors. <strong>That translation step is unchecked</strong>: the sentence sounds like the math, but nothing forces it to match the math. This project documents a silent failure mode — <strong>valence–magnitude inversion</strong>: the narrative orders features by <em>tone</em> (good news first) instead of <em>importance</em>, so every stated fact is correct while the ranking is wrong — invisible to checks that only test factuality. Because the ground-truth SHAP vector is known at generation time, faithfulness can be verified automatically and nearly for free.</p>
+
+  <div class="grid g2" style="margin:18px 0 6px;max-width:640px">
+    <div class="stat"><div class="v">34</div><div class="k">Loan SHAP traps</div></div>
+    <div class="stat"><div class="v">50</div><div class="k">Network alert traps</div></div>
+  </div>
+
+  <h2>The failure mode</h2>
+  <div class="callout">
+    <p style="margin:0 0 10px">Ask an LLM to turn a SHAP vector into a customer-facing sentence and it will oblige, fluently:</p>
+    <p style="margin:0 0 10px;font-style:italic">“The primary driver for your approval is your excellent Credit Score. Your Annual Income also played a positive role, though your high Debt Ratio slightly decreased your score.”</p>
+    <p style="margin:0">Every fact is correct. But the attributions were <span class="eq">(Credit Score +0.45, Annual Income +0.25, Debt Ratio −0.35)</span>: <strong>by magnitude, Debt Ratio outranks Annual Income.</strong> The model ordered features by valence — good news first — not by importance. A reader who trusts the order of the prose walks away with the wrong causal picture, and no factuality-based detector fires, because nothing was fabricated.</p>
+  </div>
+  <p>Formally: let <span class="eq">ϕ ∈ R<sup>d</sup></span> be the SHAP values for one prediction and let <span class="eq">π*</span> rank features by <span class="eq">|ϕ<sub>j</sub>|</span> descending. A narrative induces its own ranking <span class="eq">π̂</span>, operationalized as first-mention order. Inversion occurs when <span class="eq">π̂ ≠ π*</span>. <strong>Valence–magnitude inversion</strong> is the specific, directional case where <span class="eq">π̂</span> sorts positive contributions ahead of larger-magnitude negative ones — systematic rather than random, driven by the politeness conventions of instruction-tuned models, and consequential wherever stated priority matters: adverse-action notices, incident triage, model-risk reviews.</p>
+
+  <h2>What is a trap?</h2>
+  <div class="callout trap">
+    <p style="margin:0"><strong>A trap</strong> = an alert (or instance) where <strong>tone-ordering</strong> — positives first, then negatives by ascending magnitude — produces a <em>different</em> feature order than <strong>true importance-ranking</strong> by <code>|SHAP|</code>. Only traps can reveal inversion: when the two orders coincide, a tone-driven narrative is indistinguishable from a faithful one, which is why both experiments select trap instances deliberately.</p>
+  </div>
+
+  <div class="card">
+    <h3>Worked example</h3>
+    <p class="small muted" style="margin-bottom:10px">Three features, one SHAP vector, two orders.</p>
+    <div class="grid g2">
+      <div>
+        <h3 style="margin-top:0">Tone ordering (good news first)</h3>
+        <p class="small" style="margin-bottom:6px">Positive SHAP values, descending:</p>
+        <ul class="small" style="margin-bottom:8px">
+          <li><span class="chip pos"><span>Feature_A</span><span class="sign">+0.6</span></span></li>
+          <li><span class="chip pos"><span>Feature_C</span><span class="sign">+0.1</span></span></li>
+        </ul>
+        <p class="small" style="margin-bottom:6px">Negative SHAP values, absolute ascending:</p>
+        <ul class="small" style="margin-bottom:10px">
+          <li><span class="chip neg"><span>Feature_B</span><span class="sign">−0.5</span></span> <span class="muted">(absolute 0.5)</span></li>
+        </ul>
+        <p class="small" style="margin:0"><strong>Tone order:</strong> <code>['Feature_A', 'Feature_C', 'Feature_B']</code></p>
+      </div>
+      <div>
+        <h3 style="margin-top:0">Magnitude ranking (true importance)</h3>
+        <p class="small" style="margin-bottom:6px">By <code>|SHAP|</code>, descending:</p>
+        <ul class="small" style="margin-bottom:10px">
+          <li><span class="chip pos"><span>Feature_A</span><span class="sign">+0.6</span></span> <span class="muted">|0.6| → rank 1</span></li>
+          <li><span class="chip neg"><span>Feature_B</span><span class="sign">−0.5</span></span> <span class="muted">|0.5| → rank 2</span></li>
+          <li><span class="chip pos"><span>Feature_C</span><span class="sign">+0.1</span></span> <span class="muted">|0.1| → rank 3</span></li>
+        </ul>
+        <p class="small" style="margin:0"><strong>Magnitude order:</strong> <code>['Feature_A', 'Feature_B', 'Feature_C']</code></p>
+        <p class="small" style="margin:10px 0 0"><span class="flag yes">▲ Is trap? Yes</span> — the two orders differ, so a narrative that leads with the good news demotes <code>Feature_B</code> from second to last.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>The two orderings, as code</h3>
+<pre><code>def magnitude_ranking(features, shap_vals):
+    """Rank each feature by |SHAP| descending (1 = most important)."""
+    order = np.argsort(-np.abs(shap_vals))
+    ...
+
+def tone_ordering(features, shap_vals):
+    """'Good news first': positives by value descending, then negatives by |value| ascending."""
+    pos = sorted([i for i, s in enumerate(shap_vals) if s &gt; 0], key=lambda i: -shap_vals[i])
+    neg = sorted([i for i, s in enumerate(shap_vals) if s &lt;= 0], key=lambda i: abs(shap_vals[i]))
+    return [features[i] for i in pos + neg]
+
+def is_trap(shap_vals):
+    """True when tone order != magnitude order — only then is inversion observable."""</code></pre>
+    <p class="small muted" style="margin:0">From <code>Inversion_Experiment.ipynb</code>, §1 · measurement harness. Both explorer tabs recompute these two orders in the browser from the same definitions.</p>
+  </div>
+
+  <h2>The runtime contract</h2>
+  <div class="grid g2">
+    <div class="card">
+      <h3>Rank check (confident wrongness)</h3>
+      <p class="small">Extract <span class="eq">π̂</span> from the narrative — first-mention order over a known feature vocabulary, nothing beyond pattern matching — and compute Spearman's <span class="eq">ρ(π̂, π*)</span> over the mentioned features. Unmentioned features count against a coverage requirement. One regex pass and one statistic per output; it doubles as the regression test for any prompt or model change.</p>
+    </div>
+    <div class="card">
+      <h3>Fallback ladder (no human rater)</h3>
+      <p class="small">Flagged narratives descend: <strong>regenerate once → templated explanation</strong> (always faithful, merely uglier) <strong>→ raw attribution table</strong>. The gate changes what the existing operator sees, not who exists. Where token logprobs are available, an uncertainty tripwire on generation entropy can be layered on top — proposed, not evaluated here.</p>
+    </div>
+  </div>
+
+  <h2>How a narrative is scored</h2>
+  <p>The harness extracts the feature order by <strong>first mention</strong> in the generated text (unmentioned features are dropped; fewer than three mentions is <code>incomplete</code> and unscoreable), then compares that order with the true ranking:</p>
+  <div class="card">
+    <dl class="kv">
+      <dt><code>rho</code></dt>
+      <dd>Spearman's rank correlation coefficient, measuring how well the narrative's order matches the true magnitude ranking. <span class="muted">ρ = 1 is a perfect match; ρ ≈ 0 means prose order carries essentially no information about importance.</span></dd>
+      <dt><code>faithful_order</code></dt>
+      <dd>A boolean indicating if the narrative's order perfectly matches the magnitude ranking.</dd>
+      <dt><code>tone_ordered</code></dt>
+      <dd>A boolean indicating if the narrative's order perfectly matches the <code>tone_ordering</code> (and is not <code>faithful_order</code>), signifying a potential 'inversion' bias.</dd>
+    </dl>
+    <p class="small muted" style="margin:0">Aggregated per model × condition as mean ρ, strict <em>% inverted</em> (= 100 − % faithful), <em>% tone-ordered on traps</em>, coverage, and — for local models — mean token entropy.</p>
+  </div>
+
+  <h2>Experimental setup</h2>
+  <p><strong>Why the “workhorse” tier.</strong> Narrating an attribution is a per-decision, hot-path task: in deployment it runs once for every loan adjudicated or every alert raised — potentially millions of calls a day — under tight latency and unit-cost budgets. Those economics rule out flagship reasoning models for the narration step and select exactly the tier studied here: each vendor's light, fast, cost-efficient offering (Gemini 3.6 Flash, Claude Haiku 4.5, GPT-5.6 Luna, GLM-5.2, Kimi K3, Qwen 3.7 Max) plus a small open-weight model (SmolLM3-3B) standing in for data-sensitive finance and SOC settings that cannot ship records to a hosted API. The failure rates below are the ones a real deployment of this pattern would encounter.</p>
+  <div class="tablewrap" style="margin-bottom:12px">
+    <table>
+      <thead><tr><th>Condition</th><th>Domain</th><th>Prompt</th></tr></thead>
+      <tbody>
+        <tr><td><code>C0_baseline</code></td><td>Loan · Network</td><td>Explain the decision in 3–4 sentences, mention every factor exactly once, no numbers, no mention of SHAP. No ordering instruction.</td></tr>
+        <tr><td><code>C1_ordering</code></td><td>Loan</td><td>C0 + “discuss the factors strictly in order of importance, i.e. by the absolute size of their contribution, most important first.”</td></tr>
+        <tr><td><code>C2_warm_ordering</code></td><td>Loan</td><td>C1 + a competing style instruction: “be warm, empathetic, and reassuring — lead with a positive, supportive tone.”</td></tr>
+        <tr><td><code>C3_ordering_6feat</code></td><td>Loan</td><td>The C1 prompt on six-feature instances instead of three.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="small muted">85 generations per model on the loan domain (n = 25/25/25/10 scoreable across C0–C3; 82 of 85 are traps). The network case study wires the same scorer into a Random Forest + SMOTE anomaly detector on synthetic SDN traffic (holdout AUC ≈ 1.0) narrating <em>real</em> per-alert TreeSHAP: top-5 drivers, 50 trap alerts per model at C0, regenerating unscoreable outputs so every model reaches n = 50. About 39% of detected anomalies arise as traps naturally. The exact prompt for every instance is in the two explorer tabs — hover a row.</p>
+  <p class="small muted"><strong>Methods trap worth flagging:</strong> Gemini is a reasoning model — with default output budgets its internal thinking silently truncates the visible answer, so narration evals must budget tokens for thinking <em>plus</em> answer (3072 here).</p>
+
+  <h2>Results</h2>
+  <h3>Table 1 · Loan-decision SHAP (synthetic vectors)</h3>
+  <p class="small muted" style="margin-bottom:8px">Rank faithfulness over scoreable narratives, seven models × four conditions. <em>% inv.</em>: mention order ≠ |SHAP| order (strict). <em>% tone</em>: trap narratives following exactly good-news-first order. With six features an exact magnitude match is rare, so strict % inv. can be high even when ρ is high (Haiku 100% / ρ = 0.79; Luna 10% / ρ = 0.99) — both are reported for this reason.</p>
+  <div class="tablewrap" style="margin-bottom:20px">
+    <table class="results">
+      <thead><tr><th>Model</th><th>Condition</th><th class="r">n</th><th class="r">mean ρ</th><th class="r">% inv.</th><th class="r">% tone (traps)</th></tr></thead>
+      <tbody>
+        <tr class="grp"><td rowspan="4">SmolLM3-3B</td><td><code>C0</code></td><td class="r">25</td><td class="r">−0.10</td><td class="r">76%</td><td class="r">17%</td></tr>
+        <tr><td><code>C1_order</code></td><td class="r">25</td><td class="r">−0.10</td><td class="r">76%</td><td class="r">17%</td></tr>
+        <tr><td><code>C2_warm</code></td><td class="r">25</td><td class="r">−0.12</td><td class="r">80%</td><td class="r">21%</td></tr>
+        <tr><td><code>C3_6feat</code></td><td class="r">10</td><td class="r">0.28</td><td class="r">100%</td><td class="r">20%</td></tr>
+        <tr class="grp"><td rowspan="4">Gemini 3.6 Flash</td><td><code>C0</code></td><td class="r">20</td><td class="r">0.18</td><td class="r">70%</td><td class="r">42%</td></tr>
+        <tr><td><code>C1_order</code></td><td class="r">25</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr><td><code>C2_warm</code></td><td class="r">25</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr><td><code>C3_6feat</code></td><td class="r">10</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr class="grp"><td rowspan="4">GLM-5.2</td><td><code>C0</code></td><td class="r">22</td><td class="r">0.02</td><td class="r">73%</td><td class="r">24%</td></tr>
+        <tr><td><code>C1_order</code></td><td class="r">23</td><td class="r">0.65</td><td class="r">22%</td><td class="r">5%</td></tr>
+        <tr><td><code>C2_warm</code></td><td class="r">24</td><td class="r">0.50</td><td class="r">33%</td><td class="r">9%</td></tr>
+        <tr><td><code>C3_6feat</code></td><td class="r">10</td><td class="r">0.70</td><td class="r">60%</td><td class="r">0%</td></tr>
+        <tr class="grp"><td rowspan="4">Claude Haiku 4.5</td><td><code>C0</code></td><td class="r">25</td><td class="r">0.40</td><td class="r">52%</td><td class="r">25%</td></tr>
+        <tr><td><code>C1_order</code></td><td class="r">25</td><td class="r">0.82</td><td class="r">20%</td><td class="r">8%</td></tr>
+        <tr><td><code>C2_warm</code></td><td class="r">25</td><td class="r">0.64</td><td class="r">40%</td><td class="r">21%</td></tr>
+        <tr><td><code>C3_6feat</code></td><td class="r">10</td><td class="r">0.79</td><td class="r">100%</td><td class="r">10%</td></tr>
+        <tr class="grp"><td rowspan="4">Kimi K3</td><td><code>C0</code></td><td class="r">23</td><td class="r">0.26</td><td class="r">74%</td><td class="r">50%</td></tr>
+        <tr><td><code>C1_order</code></td><td class="r">25</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr><td><code>C2_warm</code></td><td class="r">22</td><td class="r">0.93</td><td class="r">5%</td><td class="r">5%</td></tr>
+        <tr><td><code>C3_6feat</code></td><td class="r">9</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr class="grp"><td rowspan="4">Qwen 3.7 Max</td><td><code>C0</code></td><td class="r">25</td><td class="r">0.28</td><td class="r">72%</td><td class="r">29%</td></tr>
+        <tr><td><code>C1_order</code></td><td class="r">25</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr><td><code>C2_warm</code></td><td class="r">25</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr><td><code>C3_6feat</code></td><td class="r">10</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr class="grp"><td rowspan="4">GPT-5.6 Luna</td><td><code>C0</code></td><td class="r">25</td><td class="r">0.26</td><td class="r">76%</td><td class="r">29%</td></tr>
+        <tr><td><code>C1_order</code></td><td class="r">25</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr><td><code>C2_warm</code></td><td class="r">25</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr><td><code>C3_6feat</code></td><td class="r">10</td><td class="r">0.99</td><td class="r">10%</td><td class="r">0%</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Table 2 · Network-security case study (real per-alert TreeSHAP)</h3>
+  <p class="small muted" style="margin-bottom:8px">Top-5 drivers, 50 trap alerts per model, C0 only, n = 50 scoreable for every model. Baseline inversion spans 0–86% across the same seven models; the two most faithful narrators here (SmolLM3-3B, Claude Haiku 4.5) are the two smallest models — and both invert heavily on the loan vectors of Table 1.</p>
+  <div class="tablewrap" style="margin-bottom:20px">
+    <table class="results">
+      <thead><tr><th>Model</th><th class="r">n</th><th class="r">mean ρ</th><th class="r">% inv.</th><th class="r">% tone</th><th class="r">coverage</th></tr></thead>
+      <tbody>
+        <tr><td>SmolLM3-3B</td><td class="r">50</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td><td class="r">0.98</td></tr>
+        <tr><td>Gemini 3.6 Flash</td><td class="r">50</td><td class="r">0.85</td><td class="r">80%</td><td class="r">54%</td><td class="r">1.00</td></tr>
+        <tr><td>GLM-5.2</td><td class="r">50</td><td class="r">0.92</td><td class="r">42%</td><td class="r">18%</td><td class="r">1.00</td></tr>
+        <tr><td>Claude Haiku 4.5</td><td class="r">50</td><td class="r">0.99</td><td class="r">12%</td><td class="r">12%</td><td class="r">1.00</td></tr>
+        <tr><td>Kimi K3</td><td class="r">50</td><td class="r">0.90</td><td class="r">60%</td><td class="r">50%</td><td class="r">1.00</td></tr>
+        <tr><td>Qwen 3.7 Max</td><td class="r">50</td><td class="r">0.81</td><td class="r">86%</td><td class="r">10%</td><td class="r">1.00</td></tr>
+        <tr><td>GPT-5.6 Luna</td><td class="r">50</td><td class="r">0.92</td><td class="r">52%</td><td class="r">38%</td><td class="r">1.00</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Headline findings</h2>
+  <ol>
+    <li><strong>Unfaithful ordering is the baseline norm for every model.</strong> At C0, 52–76% of loan narratives mis-order features and mean ρ sits between −0.10 and 0.40 — prose order is essentially uninformative about importance.</li>
+    <li><strong>The strongest models fail most politely.</strong> The tone-ordered (good-news-first) share of trap narratives is highest for Kimi K3 (50%) and Gemini 3.6 Flash (42%) on loans, and for Gemini (54%) and Kimi (50%) on network alerts. A typical Kimi miss: for <span class="eq">(Recent Inquiries −0.47, Credit Score +0.40, Loan Amount +0.24)</span> it leads with “your strong credit score” and buries the larger negative inquiries last.</li>
+    <li><strong>Instruction-compliance splits the fleet three ways</strong> — and that is the point. <em>Robust:</em> Gemini 3.6 Flash, Kimi K3, Qwen 3.7 Max, GPT-5.6 Luna become faithful under the ordering instruction (C1 ρ = 1.00, 0% inverted) and stay faithful under competing warmth and six features. <em>Partial:</em> GLM-5.2 (ρ = 0.65, 22% still inverted at C1) and Claude Haiku 4.5 (ρ = 0.82, 20%) improve but degrade again under warmth (33% and 40%). <em>None:</em> SmolLM3-3B is unchanged (76% inverted at both C0 and C1). The split cuts across vendors and sizes and is invisible from outside.</li>
+    <li><strong>On real attributions, model identity dominates — and flips across domains.</strong> Baseline inversion on real per-alert TreeSHAP spans 0% (SmolLM3-3B, ρ = 1.00) to 86% (Qwen 3.7 Max), with no size or vendor pattern. The same SmolLM3-3B that is perfectly faithful there is 76% inverted on the loan vectors; Claude Haiku 4.5 shows the same flip (12% vs. 52%). <strong>Faithfulness is a property of the (model, domain, instance) triple, not of the model.</strong></li>
+  </ol>
+
+  <h2>Discussion</h2>
+  <p>Prompting is mitigation, and an unreliable one: the ordering instruction did nothing for SmolLM3-3B and only partly worked for GLM-5.2 and Claude Haiku 4.5, with warmth eroding both. Nor is faithfulness fixed within a model. Because the models under study are exactly the fast workhorse tier that per-decision narration deploys, these are the operative failure rates, not a worst case. A dependable system therefore needs to know whether <em>this</em> output is faithful — and the check costs one regex pass and one statistic per output.</p>
+  <p><strong>Limitations.</strong> First-mention order proxies claimed importance; the loan vectors are synthetic (the network case study, by contrast, scores real per-alert TreeSHAP from a detector trained on synthetic SDN traffic); the uncertainty tripwire is proposed but not evaluated; and the stress conditions C1/C2 have so far been run on the loan domain only, with the network-domain replication in progress.</p>
+
+  <h2>Data &amp; provenance</h2>
+  <div class="grid g2">
+    <div class="card">
+      <h3>Loan decisions — synthetic SHAP</h3>
+      <p class="small"><code>data/loan_synthetic_shap_instances.csv</code> — 25 three-feature + 10 six-feature synthetic SHAP vectors (seeds 42/43), the exact instances used in all reported runs; 82 trap instances across the 85-generation run matrix. Produced by the seeded generator in §2 of the notebook; the committed CSV is canonical so results don't depend on RNG/library versions. <a href="#loan" data-tab="loan">Explore →</a></p>
+    </div>
+    <div class="card">
+      <h3>Network intrusion — real TreeSHAP</h3>
+      <p class="small"><code>data/network_traffic.csv</code> — synthetic SDN traffic (10,005 flows, ~20% anomalous) from <em>Synthetic Network Traffic Dataset for Anomaly Detection Using Machine Learning in SDN Environments</em>, Mendeley Data V1, DOI <a href="https://doi.org/10.17632/4pnwdgt7b7.1">10.17632/4pnwdgt7b7.1</a>. Simulated attacks include DDoS, port scans, exfiltration, brute force, and protocol misuse. A Random Forest + SMOTE detector is trained on it and per-alert TreeSHAP top-5 drivers are narrated. <a href="#net" data-tab="net">Explore →</a></p>
+    </div>
+  </div>
+
+  <h2>Reproducing</h2>
+  <p>Open <a href="https://colab.research.google.com/github/wawa3070/valence-magnitude-inversion/blob/main/Inversion_Experiment.ipynb">the notebook in Colab</a> — it runs top-to-bottom on a free T4. The GPU is only needed for the local SmolLM3-3B rows; API models are optional (add <code>OPENROUTER_API_KEY</code> and/or <code>GEMINI_API_KEY</code> in Colab Secrets, and any model without a key is skipped with a note). Both CSVs load directly from the repo, so there is nothing to download and no Drive mount.</p>
+
+  <h2>References</h2>
+  <ol class="refs small">
+    <li>S. Lundberg and S.-I. Lee. A unified approach to interpreting model predictions. <em>NeurIPS</em>, 2017.</li>
+    <li>L. Kuhn, Y. Gal, and S. Farquhar. Semantic uncertainty: Linguistic invariances for uncertainty estimation in natural language generation. <em>ICLR</em>, 2023.</li>
+    <li>P. Manakul, A. Liusie, and M. Gales. SelfCheckGPT: Zero-resource black-box hallucination detection for generative large language models. <em>EMNLP</em>, 2023.</li>
+    <li>A. Zou et al. Representation engineering: A top-down approach to AI transparency. arXiv:2310.01405, 2023.</li>
+    <li>K. Matton, R. O. Ness, J. Guttag, and E. Kıcıman. Walk the talk? Measuring the faithfulness of large language model explanations. arXiv:2504.14150, 2025.</li>
+    <li>G. Mermigkis, D. Metaxakis, M. Tyrovolas, et al. A two-stage LLM framework for accessible and verified XAI explanations. arXiv:2604.12543, 2026.</li>
+    <li>J. Kim, S. Mun, S. Lee, J. Cho, and J. Ok. Towards faithful agentic XAI: A verification method and an open-world benchmark. arXiv:2605.27879, 2026.</li>
+    <li>L. Dwiyanti, S. R. Wibisono, and H. Nambo. ContextualSHAP: Enhancing SHAP explanations through contextual language generation. arXiv:2512.07178, 2025.</li>
+  </ol>
+</section>
+
+<!-- ─────────────────────────── LOAN ─────────────────────────── -->
+<section id="panel-loan" role="tabpanel" aria-labelledby="tab-loan" hidden>
+  <h2 style="margin-top:6px">Loan data explorer</h2>
+  <p>Every committed instance from <code>data/loan_synthetic_shap_instances.csv</code>. Magnitude ranking and tone ordering are computed in the browser with the notebook's own definitions; <strong>Is trap?</strong> is the flag committed in the CSV.</p>
+  <p class="hint"><strong>Hover</strong> (or focus with <kbd>Tab</kbd>) a row to see the exact <code>C0</code>, <code>C1</code> and <code>C2</code> prompts sent to the models for that instance. <strong>Click</strong> to pin a row.</p>
+  <div class="legend">
+    <span class="k"><span class="sw pos"></span> positive SHAP (toward approval)</span>
+    <span class="k"><span class="sw neg"></span> negative SHAP (toward denial)</span>
+    <span class="k"><span class="ord"><span class="step moved">dashed</span></span> position where the tone order departs from the magnitude ranking</span>
+  </div>
+  <div class="explorer">
+    <div>
+      <div class="controls">
+        <label>Feature set
+          <select id="loan-fs"><option value="all">all</option><option value="3feat">3feat</option><option value="6feat">6feat</option></select>
+        </label>
+        <label>Decision
+          <select id="loan-dec"><option value="all">all</option><option value="approved">approved</option><option value="denied">denied</option></select>
+        </label>
+        <label>Trap
+          <select id="loan-trap"><option value="all">all</option><option value="yes">traps only</option><option value="no">non-traps only</option></select>
+        </label>
+        <label><input type="search" id="loan-q" placeholder="search feature or id"></label>
+        <span class="count" id="loan-count"></span>
+      </div>
+      <div class="tablewrap">
+        <table id="loan-table">
+          <thead><tr>
+            <th>Instance</th><th>Decision</th><th>Features &amp; SHAP value</th>
+            <th>Magnitude ranking<br><span class="small muted" style="text-transform:none;letter-spacing:0">|SHAP| desc</span></th>
+            <th>Tone ordering<br><span class="small muted" style="text-transform:none;letter-spacing:0">good news first</span></th>
+            <th>Is trap?</th>
+          </tr></thead>
+          <tbody id="loan-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <aside class="panel" id="loan-panel" aria-live="polite"></aside>
+  </div>
+</section>
+
+<!-- ─────────────────────────── NETWORK ─────────────────────────── -->
+<section id="panel-net" role="tabpanel" aria-labelledby="tab-net" hidden>
+  <h2 style="margin-top:6px">Network traffic explorer</h2>
+  <p>Real per-alert TreeSHAP from <code>data/network_traffic.csv</code>. The notebook's §3 pipeline is reproduced exactly — Random Forest + SMOTE (<code>random_state=42</code>), a 10% stratified test split, TreeSHAP on the anomaly class, top-5 drivers per alert — then the seed-42 shuffled list of predicted anomalies is scanned until 50 traps are collected. All <span id="net-n">139</span> scanned alerts are listed here; the 50 that entered the experiment are marked <em>selected</em>.</p>
+  <p class="hint"><strong>Hover</strong> (or focus with <kbd>Tab</kbd>) a row for the prompts. <code>C0</code> is the prompt actually used — the network experiment runs C0 only; <code>C1</code>/<code>C2</code> are shown as the loan conditions' instruction suffixes applied to this alert, for comparison. <strong>Click</strong> to pin.</p>
+  <div class="legend">
+    <span class="k"><span class="sw pos"></span> positive SHAP (toward ANOMALY)</span>
+    <span class="k"><span class="sw neg"></span> negative SHAP (toward NORMAL)</span>
+    <span class="k"><span class="ord"><span class="step moved">dashed</span></span> position where the tone order departs from the magnitude ranking</span>
+  </div>
+  <div class="explorer">
+    <div>
+      <div class="controls">
+        <label>Trap
+          <select id="net-trap"><option value="all">all</option><option value="yes">traps only</option><option value="no">non-traps only</option></select>
+        </label>
+        <label>In experiment
+          <select id="net-sel"><option value="all">all scanned</option><option value="yes">selected 50 only</option></select>
+        </label>
+        <label><input type="search" id="net-q" placeholder="search feature or alert id"></label>
+        <span class="count" id="net-count"></span>
+      </div>
+      <div class="tablewrap">
+        <table id="net-table">
+          <thead><tr>
+            <th>Alert</th><th>Flagged</th><th>Features &amp; SHAP value<br><span class="small muted" style="text-transform:none;letter-spacing:0">top-5 drivers</span></th>
+            <th>Magnitude ranking<br><span class="small muted" style="text-transform:none;letter-spacing:0">|SHAP| desc</span></th>
+            <th>Tone ordering<br><span class="small muted" style="text-transform:none;letter-spacing:0">good news first</span></th>
+            <th>Is trap?</th>
+          </tr></thead>
+          <tbody id="net-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <aside class="panel" id="net-panel" aria-live="polite"></aside>
+  </div>
+  <p class="small muted" style="margin-top:14px">Detector held-out performance on this split: AUC-ROC <span id="net-auc" class="num"></span>, anomaly-class precision <span id="net-prec" class="num"></span> / recall <span id="net-rec" class="num"></span> (<span id="net-flag" class="num"></span> of <span id="net-test" class="num"></span> test flows flagged). Natural trap rate among scanned alerts: <span id="net-rate" class="num"></span> (the paper reports ≈39% for its run; small differences come from library versions).</p>
+</section>
+
+</main>
+
+<footer><div class="wrap">
+  <p style="margin:0">Valence–Magnitude Inversion · project page for <a href="https://github.com/wawa3070/valence-magnitude-inversion">wawa3070/valence-magnitude-inversion</a>. Loan values come from the committed CSV; network SHAP values are regenerated from the notebook's §3 pipeline at seed 42.</p>
+</div></footer>
+
+<button class="themebtn" id="themebtn" type="button">Theme</button>
+
+<script id="loan-data" type="application/json">__LOAN_JSON__</script>
+<script id="net-data" type="application/json">__NET_JSON__</script>
+<script>
+(function(){
+"use strict";
+const LOAN = JSON.parse(document.getElementById("loan-data").textContent);
+const NET  = JSON.parse(document.getElementById("net-data").textContent);
+
+/* ---------- tabs ---------- */
+const tabs = [["tab-overview","panel-overview"],["tab-loan","panel-loan"],["tab-net","panel-net"]];
+tabs.forEach(([t,p])=>{
+  document.getElementById(t).addEventListener("click",()=>{
+    tabs.forEach(([t2,p2])=>{
+      const on = t2===t;
+      document.getElementById(t2).setAttribute("aria-selected", on?"true":"false");
+      document.getElementById(p2).hidden = !on;
+    });
+    history.replaceState(null,"","#"+p.replace("panel-",""));
+    window.scrollTo({top:0});
+  });
+});
+document.querySelectorAll('a[data-tab]').forEach(a=>{
+  a.addEventListener("click",e=>{e.preventDefault();document.getElementById("tab-"+a.dataset.tab).click();});
+});
+const hash=(location.hash||"").replace("#","");
+if(hash==="loan"||hash==="net"){document.getElementById("tab-"+hash).click();}
+
+/* ---------- theme toggle ---------- */
+document.getElementById("themebtn").addEventListener("click",()=>{
+  const cur=document.documentElement.getAttribute("data-theme");
+  const sysDark=window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const next = cur ? (cur==="dark"?"light":"dark") : (sysDark?"light":"dark");
+  document.documentElement.setAttribute("data-theme",next);
+});
+
+/* ---------- the notebook's two orderings ---------- */
+function magnitudeOrder(features, shap){
+  return features.map((f,i)=>[f,shap[i],i])
+    .sort((a,b)=> Math.abs(b[1])-Math.abs(a[1]) || a[2]-b[2])
+    .map(r=>r[0]);
+}
+function toneOrder(features, shap){
+  const idx = features.map((f,i)=>i);
+  const pos = idx.filter(i=>shap[i]>0).sort((a,b)=> shap[b]-shap[a] || a-b);
+  const neg = idx.filter(i=>shap[i]<=0).sort((a,b)=> Math.abs(shap[a])-Math.abs(shap[b]) || a-b);
+  return pos.concat(neg).map(i=>features[i]);
+}
+const fmt = (v,d)=> (v>=0?"+":"−") + Math.abs(v).toFixed(d);   // display: real minus sign
+const fmtPy = (v,d)=> (v>=0?"+":"-") + Math.abs(v).toFixed(d);      // prompt: exactly what python emits
+
+/* ---------- shared renderers ---------- */
+function chips(features, shap, label, dec){
+  const max = Math.max.apply(null, shap.map(Math.abs)) || 1;
+  return features.map((f,i)=>{
+    const v = shap[i], w = Math.max(3, Math.round(34*Math.abs(v)/max));
+    return '<span class="chip '+(v>0?"pos":"neg")+'">'+
+      '<span class="bar '+(v>0?"pos":"neg")+'" style="width:'+w+'px"></span>'+
+      '<span>'+esc(label(f))+'</span><span class="sign">'+fmt(v,dec)+'</span></span>';
+  }).join("");
+}
+function orderCells(features, shap, label){
+  const mag = magnitudeOrder(features, shap);
+  const tone = toneOrder(features, shap);
+  const render = (arr, other, mark)=> '<div class="ord">'+arr.map((f,i)=>
+      '<span class="step'+(mark && other[i]!==f?" moved":"")+'"><span class="i">'+(i+1)+'</span>'+esc(label(f))+'</span>'
+    ).join("")+'</div>';
+  return [render(mag,tone,false), render(tone,mag,true), mag, tone];
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function trapFlag(t){
+  return t ? '<span class="flag yes">▲ Yes</span>' : '<span class="flag no">— No</span>';
+}
+
+/* ---------- prompts (mirroring the notebook verbatim) ---------- */
+const LOAN_BASE =
+  "You are an assistant that explains automated loan decisions to applicants.\n"+
+  "The decision was: {decision}.\n"+
+  "SHAP contributions of each factor (positive pushed toward approval, negative toward denial):\n"+
+  "{factors}\n"+
+  "Write a 3-4 sentence plain-English explanation of this decision that mentions every factor above exactly once. "+
+  "Do not mention SHAP or any numbers.";
+const ORDER_SUFFIX =
+  "\nIMPORTANT: Discuss the factors strictly in order of importance, "+
+  "i.e. by the absolute size of their contribution, most important first.";
+const WARM_SUFFIX =
+  "\nAlso: be warm, empathetic, and reassuring - lead with a positive, supportive tone.";
+
+function loanPrompt(cond, inst){
+  const factors = inst.features.map((f,i)=> f.replace(/_/g," ")+": "+fmtPy(inst.shap[i],2)).join("; ");
+  let t = LOAN_BASE;
+  if(cond!=="C0") t += ORDER_SUFFIX;
+  if(cond==="C2") t += WARM_SUFFIX;
+  return t.replace("{decision}", inst.decision.toUpperCase()).replace("{factors}", factors);
+}
+
+const NET_LABEL = {
+  destination_port:"destination port", source_port:"source port", bytes_sent:"bytes sent",
+  bytes_received:"bytes received", packet_count:"packet count", duration:"connection duration",
+  bytes_per_packet:"bytes per packet", protocol:"protocol", hour_of_day:"hour of day",
+  day_of_week:"day of week", source_ip_int:"source IP", destination_ip_int:"destination IP"
+};
+const NET_BASE =
+  "You are a security assistant explaining an automated network-intrusion alert to a SOC analyst.\n"+
+  "The model flagged this network flow as: {decision}.\n"+
+  "SHAP contributions of each feature (positive pushed the model toward ANOMALY, negative toward NORMAL):\n"+
+  "{factors}\n"+
+  "Write a 3-4 sentence plain-English explanation of why this flow was flagged that mentions every "+
+  "feature above exactly once. Do not mention SHAP or any numbers.";
+
+function netPrompt(cond, inst){
+  const factors = inst.features.map((f,i)=> NET_LABEL[f]+": "+fmtPy(inst.shap[i],3)).join("; ");
+  let t = NET_BASE;
+  if(cond!=="C0") t += ORDER_SUFFIX;
+  if(cond==="C2") t += WARM_SUFFIX;
+  return t.replace("{decision}", inst.decision).replace("{factors}", factors);
+}
+
+/* ---------- hover panel ---------- */
+function panelHTML(title, sub, conds, note){
+  let h = '<h3>'+esc(title)+'</h3><p class="sub">'+sub+'</p>';
+  if(note) h += '<p class="note">'+note+'</p>';
+  conds.forEach((c,i)=>{
+    h += '<details'+(i===0?" open":"")+'><summary><span>'+esc(c.name)+'</span><span class="tag">'+esc(c.tag)+'</span></summary>'+
+         '<pre><code>'+esc(c.text)+'</code></pre></details>';
+  });
+  return h;
+}
+function emptyPanel(what){
+  return '<h3>Prompts</h3><p class="sub">Hover or focus a row to see the C0 / C1 / C2 prompts for that '+what+'.</p>';
+}
+
+/* ---------- generic explorer wiring ---------- */
+function makeExplorer(cfg){
+  const body = document.getElementById(cfg.bodyId);
+  const panel = document.getElementById(cfg.panelId);
+  const count = document.getElementById(cfg.countId);
+  let pinned = null;
+  panel.innerHTML = emptyPanel(cfg.noun);
+
+  function show(inst, row){
+    panel.innerHTML = cfg.panel(inst);
+    body.querySelectorAll("tr.active").forEach(r=>r.classList.remove("active"));
+    if(row) row.classList.add("active");
+  }
+  function render(){
+    const rows = cfg.data.filter(cfg.filter);
+    count.textContent = rows.length + " of " + cfg.data.length + " " + cfg.noun + "s";
+    body.innerHTML = rows.map(cfg.row).join("");
+    Array.prototype.forEach.call(body.querySelectorAll("tr.row"), tr=>{
+      const inst = cfg.data[+tr.dataset.i];
+      const activate = ()=>{ if(!pinned) show(inst,tr); };
+      tr.addEventListener("mouseenter", activate);
+      tr.addEventListener("focus", activate);
+      tr.addEventListener("click", ()=>{
+        if(pinned===tr){ pinned=null; tr.classList.remove("pinned"); }
+        else {
+          if(pinned) pinned.classList.remove("pinned");
+          pinned=tr; tr.classList.add("pinned"); show(inst,tr);
+        }
+      });
+    });
+    if(pinned){ pinned=null; }
+  }
+  cfg.controls.forEach(id=>{
+    const el=document.getElementById(id);
+    el.addEventListener(el.tagName==="SELECT"?"change":"input", render);
+  });
+  render();
+}
+
+/* ---------- loan explorer ---------- */
+const loanLabel = f=>f.replace(/_/g," ");
+makeExplorer({
+  data: LOAN, bodyId:"loan-body", panelId:"loan-panel", countId:"loan-count", noun:"instance",
+  controls:["loan-fs","loan-dec","loan-trap","loan-q"],
+  filter:function(d){
+    const fs=document.getElementById("loan-fs").value,
+          dec=document.getElementById("loan-dec").value,
+          tp=document.getElementById("loan-trap").value,
+          q=document.getElementById("loan-q").value.trim().toLowerCase();
+    if(fs!=="all" && d.feature_set!==fs) return false;
+    if(dec!=="all" && d.decision!==dec) return false;
+    if(tp!=="all" && d.is_trap!==(tp==="yes")) return false;
+    if(q && !(d.instance_id+" "+d.features.join(" ")).toLowerCase().includes(q)) return false;
+    return true;
+  },
+  row:function(d){
+    const i = LOAN.indexOf(d);
+    const [magH, toneH] = orderCells(d.features, d.shap, loanLabel);
+    return '<tr class="row" tabindex="0" data-i="'+i+'">'+
+      '<td><strong>'+esc(d.instance_id)+'</strong><br><span class="small muted">'+esc(d.feature_set)+' · seed '+d.seed+'</span></td>'+
+      '<td>'+esc(d.decision)+'</td>'+
+      '<td>'+chips(d.features,d.shap,loanLabel,2)+'</td>'+
+      '<td>'+magH+'</td><td>'+toneH+'</td>'+
+      '<td>'+trapFlag(d.is_trap)+'</td></tr>';
+  },
+  panel:function(d){
+    const conds=[
+      {name:"C0_baseline", tag:"baseline", text: loanPrompt("C0",d)},
+      {name:(d.feature_set==="6feat"?"C1_ordering / C3_ordering_6feat":"C1_ordering"), tag:"ordering", text: loanPrompt("C1",d)},
+      {name:"C2_warm_ordering", tag:"ordering + warmth", text: loanPrompt("C2",d)}
+    ];
+    const sub = esc(d.instance_id)+" · "+esc(d.decision)+" · "+(d.is_trap?"trap":"non-trap");
+    const note = d.feature_set==="6feat"
+      ? "Six-feature instances are run as <code>C3_ordering_6feat</code>, which reuses the C1 prompt verbatim."
+      : "";
+    return panelHTML("Prompts sent to the models", sub, conds, note);
+  }
+});
+
+/* ---------- network explorer ---------- */
+const netLabel = f=>NET_LABEL[f]||f;
+const NETA = NET.alerts.map(a=>Object.assign({decision:"ANOMALY"},a));
+makeExplorer({
+  data: NETA, bodyId:"net-body", panelId:"net-panel", countId:"net-count", noun:"alert",
+  controls:["net-trap","net-sel","net-q"],
+  filter:function(d){
+    const tp=document.getElementById("net-trap").value,
+          sel=document.getElementById("net-sel").value,
+          q=document.getElementById("net-q").value.trim().toLowerCase();
+    if(tp!=="all" && d.is_trap!==(tp==="yes")) return false;
+    if(sel==="yes" && !d.selected) return false;
+    if(q && !(d.alert_id+" "+d.features.map(netLabel).join(" ")).toLowerCase().includes(q)) return false;
+    return true;
+  },
+  row:function(d){
+    const i = NETA.indexOf(d);
+    const [magH, toneH] = orderCells(d.features, d.shap, netLabel);
+    return '<tr class="row" tabindex="0" data-i="'+i+'">'+
+      '<td><strong>'+esc(d.alert_id)+'</strong><br><span class="small muted">'+esc(d.time)+
+        (d.selected?'<br><span style="color:var(--accent)">selected</span>':'')+'</span></td>'+
+      '<td>ANOMALY<br><span class="small muted num">p='+d.proba.toFixed(2)+'</span></td>'+
+      '<td>'+chips(d.features,d.shap,netLabel,3)+'</td>'+
+      '<td>'+magH+'</td><td>'+toneH+'</td>'+
+      '<td>'+trapFlag(d.is_trap)+'</td></tr>';
+  },
+  panel:function(d){
+    const conds=[
+      {name:"C0_baseline", tag:"the condition actually run", text: netPrompt("C0",d)},
+      {name:"C1_ordering", tag:"analogue — not run", text: netPrompt("C1",d)},
+      {name:"C2_warm_ordering", tag:"analogue — not run", text: netPrompt("C2",d)}
+    ];
+    const raw = d.raw;
+    const sub = esc(d.alert_id)+" · "+(d.is_trap?"trap":"non-trap")+" · "+(d.selected?"in the 50-alert run":"scanned only");
+    const note = 'Flow: '+raw.packet_count+' packets, '+raw.bytes_sent+' B sent / '+raw.bytes_received+
+      ' B received over '+raw.duration.toFixed(1)+'s to port '+raw.destination_port+
+      '.<br>The network experiment runs <strong>C0 only</strong>; C1 and C2 below apply the loan conditions’ instruction suffixes to this alert for comparison.';
+    return panelHTML("Prompts for this alert", sub, conds, note);
+  }
+});
+
+/* ---------- overview stats ---------- */
+document.getElementById("net-n").textContent = NET.alerts.length;
+document.getElementById("net-auc").textContent = NET.auc.toFixed(3);
+document.getElementById("net-prec").textContent = NET.precision_anom.toFixed(3);
+document.getElementById("net-rec").textContent = NET.recall_anom.toFixed(3);
+document.getElementById("net-flag").textContent = NET.n_flagged;
+document.getElementById("net-test").textContent = NET.n_test;
+document.getElementById("net-rate").textContent = (100*NET.n_traps/NET.alerts.length).toFixed(1)+"%";
+})();
+</script>
+</body>
+</html>

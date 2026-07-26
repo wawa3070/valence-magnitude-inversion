@@ -4,3 +4,4 @@ cache/
 loan_results.csv
 loan_narratives.csv
 loan_inversion_rates.png
+.claude/

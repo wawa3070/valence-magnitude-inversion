@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Valence–Magnitude Inversion — do LLM narrations of SHAP preserve the ranking?</title>
+<meta name="description" content="Project page and data explorer for the Valence–Magnitude Inversion experiment: LLM narrations of SHAP explanations re-order features by tone instead of importance.">
+<style>
+:root{
+  color-scheme: light;
+  --page:#f9f9f7; --surface:#fcfcfb; --surface-2:#f3f2ee;
+  --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+  --rule:#e1e0d9; --border:rgba(11,11,11,0.10);
+  --pos:#2a78d6; --neg:#e34948;
+  --pos-wash:rgba(42,120,214,0.12); --neg-wash:rgba(227,73,72,0.12);
+  --trap:#d03b3b; --ok:#0ca30c; --accent:#2a78d6;
+  --code-bg:#f3f2ee;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme: dark;
+    --page:#0d0d0d; --surface:#1a1a19; --surface-2:#222221;
+    --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+    --rule:#2c2c2a; --border:rgba(255,255,255,0.10);
+    --pos:#3987e5; --neg:#e66767;
+    --pos-wash:rgba(57,135,229,0.16); --neg-wash:rgba(230,103,103,0.16);
+    --trap:#e66767; --ok:#0ca30c; --accent:#3987e5;
+    --code-bg:#222221;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --page:#0d0d0d; --surface:#1a1a19; --surface-2:#222221;
+  --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+  --rule:#2c2c2a; --border:rgba(255,255,255,0.10);
+  --pos:#3987e5; --neg:#e66767;
+  --pos-wash:rgba(57,135,229,0.16); --neg-wash:rgba(230,103,103,0.16);
+  --trap:#e66767; --ok:#0ca30c; --accent:#3987e5;
+  --code-bg:#222221;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--page); color:var(--ink);
+  font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-text-size-adjust:100%;
+}
+a{color:var(--accent)}
+.wrap{max-width:1280px;margin:0 auto;padding:0 20px}
+header.top{border-bottom:1px solid var(--rule);background:var(--surface)}
+.top .wrap{padding-top:34px;padding-bottom:0}
+h1{font-size:clamp(24px,3.4vw,36px);line-height:1.15;margin:0 0 8px;letter-spacing:-0.02em}
+.tagline{color:var(--ink-2);font-size:17px;max-width:62ch;margin:0 0 14px}
+.links{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.links a{
+  display:inline-block;text-decoration:none;font-size:13px;font-weight:500;
+  color:var(--ink-2);background:var(--surface-2);border:1px solid var(--border);
+  padding:5px 11px;border-radius:999px;
+}
+.links a:hover{color:var(--ink);border-color:var(--muted)}
+nav.tabs{display:flex;gap:2px;flex-wrap:wrap}
+nav.tabs button{
+  font:inherit;font-size:14px;font-weight:500;color:var(--ink-2);
+  background:none;border:none;border-bottom:2px solid transparent;
+  padding:10px 14px;cursor:pointer;margin-bottom:-1px;
+}
+nav.tabs button:hover{color:var(--ink)}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+main{padding:28px 0 72px}
+section[hidden]{display:none}
+h2{font-size:22px;letter-spacing:-0.01em;margin:34px 0 10px}
+h3{font-size:16px;margin:22px 0 8px}
+p{margin:0 0 12px;max-width:74ch}
+.lede{font-size:16px}
+code,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.9em;
+  background:var(--code-bg);padding:1px 5px;border-radius:4px}
+pre{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;
+  padding:12px 14px;overflow-x:auto;font-size:12.5px;line-height:1.55;margin:0 0 12px}
+pre code{background:none;padding:0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin:0 0 16px}
+.card h3:first-child{margin-top:0}
+.grid{display:grid;gap:14px}
+@media(min-width:720px){.grid.g2{grid-template-columns:1fr 1fr}.grid.g4{grid-template-columns:repeat(4,1fr)}}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.stat .v{font-size:26px;font-weight:650;letter-spacing:-0.02em}
+.stat .k{font-size:12.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em}
+.tablewrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
+thead th{font-size:12px;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted);
+  font-weight:600;white-space:nowrap;position:sticky;top:0;background:var(--surface);z-index:1}
+tbody tr:last-child td{border-bottom:none}
+.num{font-variant-numeric:tabular-nums}
+ul,ol{margin:0 0 12px;padding-left:22px;max-width:74ch}
+li{margin:0 0 5px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+/* chips */
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:6px;padding:2px 7px;
+  font-size:12.5px;line-height:1.5;white-space:nowrap;border:1px solid var(--border);
+  background:var(--surface-2);margin:1px 3px 1px 0;font-variant-numeric:tabular-nums}
+.chip .sign{font-weight:650}
+.chip.pos{background:var(--pos-wash);border-color:transparent}
+.chip.pos .sign{color:var(--pos)}
+.chip.neg{background:var(--neg-wash);border-color:transparent}
+.chip.neg .sign{color:var(--neg)}
+.ord{display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+.ord .step{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:1px 8px 1px 5px;white-space:nowrap}
+.ord .step .i{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11px;
+  min-width:15px;text-align:right}
+.ord .step.moved{border-color:var(--trap);border-style:dashed}
+.legend .ord{display:inline-flex}
+.flag{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.flag.yes{color:var(--trap)}
+.flag.no{color:var(--ink-2);font-weight:500}
+.bar{display:inline-block;height:6px;border-radius:3px;vertical-align:middle}
+.bar.pos{background:var(--pos)}
+.bar.neg{background:var(--neg)}
+/* explorer layout */
+.explorer{display:grid;gap:16px;align-items:start}
+@media(min-width:1040px){.explorer{grid-template-columns:minmax(0,1fr) 330px}}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+.controls label{font-size:13px;color:var(--ink-2);display:inline-flex;align-items:center;gap:6px}
+.controls select,.controls input[type=search]{
+  font:inherit;font-size:13px;color:var(--ink);background:var(--surface);
+  border:1px solid var(--border);border-radius:7px;padding:5px 8px}
+.controls input[type=search]{min-width:180px}
+.count{font-size:12.5px;color:var(--muted);margin-left:auto}
+tbody tr.row{cursor:default}
+tbody tr.row:hover,tbody tr.row:focus-visible,tbody tr.row.active{background:var(--surface-2);outline:none}
+tbody tr.row.pinned{box-shadow:inset 3px 0 0 var(--accent)}
+.panel{position:sticky;top:12px;background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:16px 16px 18px}
+.panel h3{margin:0 0 4px;font-size:15px}
+.panel .sub{font-size:12.5px;color:var(--muted);margin:0 0 12px}
+.panel details{border-top:1px solid var(--rule);padding:8px 0 2px}
+.panel details:first-of-type{border-top:none}
+.panel summary{cursor:pointer;font-size:13px;font-weight:600;list-style:none;display:flex;
+  align-items:center;justify-content:space-between;gap:8px;padding:2px 0}
+.panel summary::-webkit-details-marker{display:none}
+.panel summary .tag{font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em}
+.panel pre{margin:6px 0 8px;font-size:11.5px;max-height:290px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.panel .note{font-size:12px;color:var(--muted);margin:0 0 8px}
+.hint{font-size:12.5px;color:var(--muted);margin:0 0 10px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--ink-2);margin:0 0 10px}
+.legend .k{display:inline-flex;align-items:center;gap:6px}
+.sw{width:10px;height:10px;border-radius:3px;display:inline-block}
+.sw.pos{background:var(--pos)}.sw.neg{background:var(--neg)}
+.paperhead{border-left:3px solid var(--accent);padding:2px 0 2px 14px;margin:0 0 18px}
+.kicker{font-size:11.5px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin:0 0 4px}
+.papertitle{font-size:21px;line-height:1.3;letter-spacing:-0.01em;margin:0 0 6px;max-width:60ch}
+table.results td,table.results th{padding:6px 12px}
+table.results thead th{text-transform:none;letter-spacing:0;font-size:12.5px}
+table.results .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.results tr.grp td{border-top:1px solid var(--rule)}
+table.results tbody td:first-child{font-weight:600;white-space:nowrap}
+ol.refs li{margin-bottom:6px;color:var(--ink-2)}
+footer{border-top:1px solid var(--rule);padding:22px 0 40px;color:var(--muted);font-size:13px}
+.themebtn{position:fixed;right:14px;bottom:14px;z-index:5;font:inherit;font-size:12.5px;
+  background:var(--surface);color:var(--ink-2);border:1px solid var(--border);
+  border-radius:999px;padding:6px 12px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+.themebtn:hover{color:var(--ink)}
+.callout{border-left:3px solid var(--accent);background:var(--surface);border-radius:0 10px 10px 0;
+  padding:14px 16px;margin:0 0 16px}
+.callout.trap{border-left-color:var(--trap)}
+.eq{font-variant-numeric:tabular-nums}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 14px;font-size:13px;margin:0 0 10px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <h1>Valence–Magnitude Inversion</h1>
+    <p class="tagline">Do LLM narrations of SHAP explanations preserve the importance ranking? Every stated fact can be correct while the <em>order</em> is silently wrong.</p>
+    <div class="links">
+      <a href="https://drive.google.com/file/d/11xksLHXSjtNmi58W8caQcoiCe3pm9tUd/view">Paper (PDF)</a>
+      <a href="https://github.com/wawa3070/valence-magnitude-inversion">GitHub repo</a>
+      <a href="https://github.com/wawa3070/valence-magnitude-inversion/blob/main/Inversion_Experiment.ipynb">Notebook</a>
+      <a href="https://colab.research.google.com/github/wawa3070/valence-magnitude-inversion/blob/main/Inversion_Experiment.ipynb">Open in Colab</a>
+      <a href="https://github.com/wawa3070/valence-magnitude-inversion/tree/main/data">Data</a>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true">Overview</button>
+      <button role="tab" id="tab-loan" aria-controls="panel-loan" aria-selected="false">Loan data explorer</button>
+      <button role="tab" id="tab-net" aria-controls="panel-net" aria-selected="false">Network traffic explorer</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ─────────────────────────── OVERVIEW ─────────────────────────── -->
+<section id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+  <div class="paperhead">
+    <p class="kicker">Paper</p>
+    <h2 class="papertitle" style="margin-top:0">When the Story Doesn't Match the Math: Runtime Verification of LLM-Narrated SHAP Explanations</h2>
+    <p class="small muted" style="margin-bottom:10px">Seven workhorse-tier models · two domains · 85 loan generations + 50 real-TreeSHAP alerts per model</p>
+  </div>
+
+  <p class="lede">Production ML systems increasingly use LLMs to translate SHAP attributions into plain-English explanations for applicants, operators, and auditors. <strong>That translation step is unchecked</strong>: the sentence sounds like the math, but nothing forces it to match the math. This project documents a silent failure mode — <strong>valence–magnitude inversion</strong>: the narrative orders features by <em>tone</em> (good news first) instead of <em>importance</em>, so every stated fact is correct while the ranking is wrong — invisible to checks that only test factuality. Because the ground-truth SHAP vector is known at generation time, faithfulness can be verified automatically and nearly for free.</p>
+
+  <div class="grid g2" style="margin:18px 0 6px;max-width:640px">
+    <div class="stat"><div class="v">34</div><div class="k">Loan SHAP traps</div></div>
+    <div class="stat"><div class="v">50</div><div class="k">Network alert traps</div></div>
+  </div>
+
+  <h2>The failure mode</h2>
+  <div class="callout">
+    <p style="margin:0 0 10px">Ask an LLM to turn a SHAP vector into a customer-facing sentence and it will oblige, fluently:</p>
+    <p style="margin:0 0 10px;font-style:italic">“The primary driver for your approval is your excellent Credit Score. Your Annual Income also played a positive role, though your high Debt Ratio slightly decreased your score.”</p>
+    <p style="margin:0">Every fact is correct. But the attributions were <span class="eq">(Credit Score +0.45, Annual Income +0.25, Debt Ratio −0.35)</span>: <strong>by magnitude, Debt Ratio outranks Annual Income.</strong> The model ordered features by valence — good news first — not by importance. A reader who trusts the order of the prose walks away with the wrong causal picture, and no factuality-based detector fires, because nothing was fabricated.</p>
+  </div>
+  <p>Formally: let <span class="eq">ϕ ∈ R<sup>d</sup></span> be the SHAP values for one prediction and let <span class="eq">π*</span> rank features by <span class="eq">|ϕ<sub>j</sub>|</span> descending. A narrative induces its own ranking <span class="eq">π̂</span>, operationalized as first-mention order. Inversion occurs when <span class="eq">π̂ ≠ π*</span>. <strong>Valence–magnitude inversion</strong> is the specific, directional case where <span class="eq">π̂</span> sorts positive contributions ahead of larger-magnitude negative ones — systematic rather than random, driven by the politeness conventions of instruction-tuned models, and consequential wherever stated priority matters: adverse-action notices, incident triage, model-risk reviews.</p>
+
+  <h2>What is a trap?</h2>
+  <div class="callout trap">
+    <p style="margin:0"><strong>A trap</strong> = an alert (or instance) where <strong>tone-ordering</strong> — positives first, then negatives by ascending magnitude — produces a <em>different</em> feature order than <strong>true importance-ranking</strong> by <code>|SHAP|</code>. Only traps can reveal inversion: when the two orders coincide, a tone-driven narrative is indistinguishable from a faithful one, which is why both experiments select trap instances deliberately.</p>
+  </div>
+
+  <div class="card">
+    <h3>Worked example</h3>
+    <p class="small muted" style="margin-bottom:10px">Three features, one SHAP vector, two orders.</p>
+    <div class="grid g2">
+      <div>
+        <h3 style="margin-top:0">Tone ordering (good news first)</h3>
+        <p class="small" style="margin-bottom:6px">Positive SHAP values, descending:</p>
+        <ul class="small" style="margin-bottom:8px">
+          <li><span class="chip pos"><span>Feature_A</span><span class="sign">+0.6</span></span></li>
+          <li><span class="chip pos"><span>Feature_C</span><span class="sign">+0.1</span></span></li>
+        </ul>
+        <p class="small" style="margin-bottom:6px">Negative SHAP values, absolute ascending:</p>
+        <ul class="small" style="margin-bottom:10px">
+          <li><span class="chip neg"><span>Feature_B</span><span class="sign">−0.5</span></span> <span class="muted">(absolute 0.5)</span></li>
+        </ul>
+        <p class="small" style="margin:0"><strong>Tone order:</strong> <code>['Feature_A', 'Feature_C', 'Feature_B']</code></p>
+      </div>
+      <div>
+        <h3 style="margin-top:0">Magnitude ranking (true importance)</h3>
+        <p class="small" style="margin-bottom:6px">By <code>|SHAP|</code>, descending:</p>
+        <ul class="small" style="margin-bottom:10px">
+          <li><span class="chip pos"><span>Feature_A</span><span class="sign">+0.6</span></span> <span class="muted">|0.6| → rank 1</span></li>
+          <li><span class="chip neg"><span>Feature_B</span><span class="sign">−0.5</span></span> <span class="muted">|0.5| → rank 2</span></li>
+          <li><span class="chip pos"><span>Feature_C</span><span class="sign">+0.1</span></span> <span class="muted">|0.1| → rank 3</span></li>
+        </ul>
+        <p class="small" style="margin:0"><strong>Magnitude order:</strong> <code>['Feature_A', 'Feature_B', 'Feature_C']</code></p>
+        <p class="small" style="margin:10px 0 0"><span class="flag yes">▲ Is trap? Yes</span> — the two orders differ, so a narrative that leads with the good news demotes <code>Feature_B</code> from second to last.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>The two orderings, as code</h3>
+<pre><code>def magnitude_ranking(features, shap_vals):
+    """Rank each feature by |SHAP| descending (1 = most important)."""
+    order = np.argsort(-np.abs(shap_vals))
+    ...
+
+def tone_ordering(features, shap_vals):
+    """'Good news first': positives by value descending, then negatives by |value| ascending."""
+    pos = sorted([i for i, s in enumerate(shap_vals) if s &gt; 0], key=lambda i: -shap_vals[i])
+    neg = sorted([i for i, s in enumerate(shap_vals) if s &lt;= 0], key=lambda i: abs(shap_vals[i]))
+    return [features[i] for i in pos + neg]
+
+def is_trap(shap_vals):
+    """True when tone order != magnitude order — only then is inversion observable."""</code></pre>
+    <p class="small muted" style="margin:0">From <code>Inversion_Experiment.ipynb</code>, §1 · measurement harness. Both explorer tabs recompute these two orders in the browser from the same definitions.</p>
+  </div>
+
+  <h2>The runtime contract</h2>
+  <div class="grid g2">
+    <div class="card">
+      <h3>Rank check (confident wrongness)</h3>
+      <p class="small">Extract <span class="eq">π̂</span> from the narrative — first-mention order over a known feature vocabulary, nothing beyond pattern matching — and compute Spearman's <span class="eq">ρ(π̂, π*)</span> over the mentioned features. Unmentioned features count against a coverage requirement. One regex pass and one statistic per output; it doubles as the regression test for any prompt or model change.</p>
+    </div>
+    <div class="card">
+      <h3>Fallback ladder (no human rater)</h3>
+      <p class="small">Flagged narratives descend: <strong>regenerate once → templated explanation</strong> (always faithful, merely uglier) <strong>→ raw attribution table</strong>. The gate changes what the existing operator sees, not who exists. Where token logprobs are available, an uncertainty tripwire on generation entropy can be layered on top — proposed, not evaluated here.</p>
+    </div>
+  </div>
+
+  <h2>How a narrative is scored</h2>
+  <p>The harness extracts the feature order by <strong>first mention</strong> in the generated text (unmentioned features are dropped; fewer than three mentions is <code>incomplete</code> and unscoreable), then compares that order with the true ranking:</p>
+  <div class="card">
+    <dl class="kv">
+      <dt><code>rho</code></dt>
+      <dd>Spearman's rank correlation coefficient, measuring how well the narrative's order matches the true magnitude ranking. <span class="muted">ρ = 1 is a perfect match; ρ ≈ 0 means prose order carries essentially no information about importance.</span></dd>
+      <dt><code>faithful_order</code></dt>
+      <dd>A boolean indicating if the narrative's order perfectly matches the magnitude ranking.</dd>
+      <dt><code>tone_ordered</code></dt>
+      <dd>A boolean indicating if the narrative's order perfectly matches the <code>tone_ordering</code> (and is not <code>faithful_order</code>), signifying a potential 'inversion' bias.</dd>
+    </dl>
+    <p class="small muted" style="margin:0">Aggregated per model × condition as mean ρ, strict <em>% inverted</em> (= 100 − % faithful), <em>% tone-ordered on traps</em>, coverage, and — for local models — mean token entropy.</p>
+  </div>
+
+  <h2>Experimental setup</h2>
+  <p><strong>Why the “workhorse” tier.</strong> Narrating an attribution is a per-decision, hot-path task: in deployment it runs once for every loan adjudicated or every alert raised — potentially millions of calls a day — under tight latency and unit-cost budgets. Those economics rule out flagship reasoning models for the narration step and select exactly the tier studied here: each vendor's light, fast, cost-efficient offering (Gemini 3.6 Flash, Claude Haiku 4.5, GPT-5.6 Luna, GLM-5.2, Kimi K3, Qwen 3.7 Max) plus a small open-weight model (SmolLM3-3B) standing in for data-sensitive finance and SOC settings that cannot ship records to a hosted API. The failure rates below are the ones a real deployment of this pattern would encounter.</p>
+  <div class="tablewrap" style="margin-bottom:12px">
+    <table>
+      <thead><tr><th>Condition</th><th>Domain</th><th>Prompt</th></tr></thead>
+      <tbody>
+        <tr><td><code>C0_baseline</code></td><td>Loan · Network</td><td>Explain the decision in 3–4 sentences, mention every factor exactly once, no numbers, no mention of SHAP. No ordering instruction.</td></tr>
+        <tr><td><code>C1_ordering</code></td><td>Loan</td><td>C0 + “discuss the factors strictly in order of importance, i.e. by the absolute size of their contribution, most important first.”</td></tr>
+        <tr><td><code>C2_warm_ordering</code></td><td>Loan</td><td>C1 + a competing style instruction: “be warm, empathetic, and reassuring — lead with a positive, supportive tone.”</td></tr>
+        <tr><td><code>C3_ordering_6feat</code></td><td>Loan</td><td>The C1 prompt on six-feature instances instead of three.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="small muted">85 generations per model on the loan domain (n = 25/25/25/10 scoreable across C0–C3; 82 of 85 are traps). The network case study wires the same scorer into a Random Forest + SMOTE anomaly detector on synthetic SDN traffic (holdout AUC ≈ 1.0) narrating <em>real</em> per-alert TreeSHAP: top-5 drivers, 50 trap alerts per model at C0, regenerating unscoreable outputs so every model reaches n = 50. About 39% of detected anomalies arise as traps naturally. The exact prompt for every instance is in the two explorer tabs — hover a row.</p>
+  <p class="small muted"><strong>Methods trap worth flagging:</strong> Gemini is a reasoning model — with default output budgets its internal thinking silently truncates the visible answer, so narration evals must budget tokens for thinking <em>plus</em> answer (3072 here).</p>
+
+  <h2>Results</h2>
+  <h3>Table 1 · Loan-decision SHAP (synthetic vectors)</h3>
+  <p class="small muted" style="margin-bottom:8px">Rank faithfulness over scoreable narratives, seven models × four conditions. <em>% inv.</em>: mention order ≠ |SHAP| order (strict). <em>% tone</em>: trap narratives following exactly good-news-first order. With six features an exact magnitude match is rare, so strict % inv. can be high even when ρ is high (Haiku 100% / ρ = 0.79; Luna 10% / ρ = 0.99) — both are reported for this reason.</p>
+  <div class="tablewrap" style="margin-bottom:20px">
+    <table class="results">
+      <thead><tr><th>Model</th><th>Condition</th><th class="r">n</th><th class="r">mean ρ</th><th class="r">% inv.</th><th class="r">% tone (traps)</th></tr></thead>
+      <tbody>
+        <tr class="grp"><td rowspan="4">SmolLM3-3B</td><td><code>C0</code></td><td class="r">25</td><td class="r">−0.10</td><td class="r">76%</td><td class="r">17%</td></tr>
+        <tr><td><code>C1_order</code></td><td class="r">25</td><td class="r">−0.10</td><td class="r">76%</td><td class="r">17%</td></tr>
+        <tr><td><code>C2_warm</code></td><td class="r">25</td><td class="r">−0.12</td><td class="r">80%</td><td class="r">21%</td></tr>
+        <tr><td><code>C3_6feat</code></td><td class="r">10</td><td class="r">0.28</td><td class="r">100%</td><td class="r">20%</td></tr>
+        <tr class="grp"><td rowspan="4">Gemini 3.6 Flash</td><td><code>C0</code></td><td class="r">20</td><td class="r">0.18</td><td class="r">70%</td><td class="r">42%</td></tr>
+        <tr><td><code>C1_order</code></td><td class="r">25</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr><td><code>C2_warm</code></td><td class="r">25</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr><td><code>C3_6feat</code></td><td class="r">10</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr class="grp"><td rowspan="4">GLM-5.2</td><td><code>C0</code></td><td class="r">22</td><td class="r">0.02</td><td class="r">73%</td><td class="r">24%</td></tr>
+        <tr><td><code>C1_order</code></td><td class="r">23</td><td class="r">0.65</td><td class="r">22%</td><td class="r">5%</td></tr>
+        <tr><td><code>C2_warm</code></td><td class="r">24</td><td class="r">0.50</td><td class="r">33%</td><td class="r">9%</td></tr>
+        <tr><td><code>C3_6feat</code></td><td class="r">10</td><td class="r">0.70</td><td class="r">60%</td><td class="r">0%</td></tr>
+        <tr class="grp"><td rowspan="4">Claude Haiku 4.5</td><td><code>C0</code></td><td class="r">25</td><td class="r">0.40</td><td class="r">52%</td><td class="r">25%</td></tr>
+        <tr><td><code>C1_order</code></td><td class="r">25</td><td class="r">0.82</td><td class="r">20%</td><td class="r">8%</td></tr>
+        <tr><td><code>C2_warm</code></td><td class="r">25</td><td class="r">0.64</td><td class="r">40%</td><td class="r">21%</td></tr>
+        <tr><td><code>C3_6feat</code></td><td class="r">10</td><td class="r">0.79</td><td class="r">100%</td><td class="r">10%</td></tr>
+        <tr class="grp"><td rowspan="4">Kimi K3</td><td><code>C0</code></td><td class="r">23</td><td class="r">0.26</td><td class="r">74%</td><td class="r">50%</td></tr>
+        <tr><td><code>C1_order</code></td><td class="r">25</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr><td><code>C2_warm</code></td><td class="r">22</td><td class="r">0.93</td><td class="r">5%</td><td class="r">5%</td></tr>
+        <tr><td><code>C3_6feat</code></td><td class="r">9</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr class="grp"><td rowspan="4">Qwen 3.7 Max</td><td><code>C0</code></td><td class="r">25</td><td class="r">0.28</td><td class="r">72%</td><td class="r">29%</td></tr>
+        <tr><td><code>C1_order</code></td><td class="r">25</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr><td><code>C2_warm</code></td><td class="r">25</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr><td><code>C3_6feat</code></td><td class="r">10</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr class="grp"><td rowspan="4">GPT-5.6 Luna</td><td><code>C0</code></td><td class="r">25</td><td class="r">0.26</td><td class="r">76%</td><td class="r">29%</td></tr>
+        <tr><td><code>C1_order</code></td><td class="r">25</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr><td><code>C2_warm</code></td><td class="r">25</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td></tr>
+        <tr><td><code>C3_6feat</code></td><td class="r">10</td><td class="r">0.99</td><td class="r">10%</td><td class="r">0%</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Table 2 · Network-security case study (real per-alert TreeSHAP)</h3>
+  <p class="small muted" style="margin-bottom:8px">Top-5 drivers, 50 trap alerts per model, C0 only, n = 50 scoreable for every model. Baseline inversion spans 0–86% across the same seven models; the two most faithful narrators here (SmolLM3-3B, Claude Haiku 4.5) are the two smallest models — and both invert heavily on the loan vectors of Table 1.</p>
+  <div class="tablewrap" style="margin-bottom:20px">
+    <table class="results">
+      <thead><tr><th>Model</th><th class="r">n</th><th class="r">mean ρ</th><th class="r">% inv.</th><th class="r">% tone</th><th class="r">coverage</th></tr></thead>
+      <tbody>
+        <tr><td>SmolLM3-3B</td><td class="r">50</td><td class="r">1.00</td><td class="r">0%</td><td class="r">0%</td><td class="r">0.98</td></tr>
+        <tr><td>Gemini 3.6 Flash</td><td class="r">50</td><td class="r">0.85</td><td class="r">80%</td><td class="r">54%</td><td class="r">1.00</td></tr>
+        <tr><td>GLM-5.2</td><td class="r">50</td><td class="r">0.92</td><td class="r">42%</td><td class="r">18%</td><td class="r">1.00</td></tr>
+        <tr><td>Claude Haiku 4.5</td><td class="r">50</td><td class="r">0.99</td><td class="r">12%</td><td class="r">12%</td><td class="r">1.00</td></tr>
+        <tr><td>Kimi K3</td><td class="r">50</td><td class="r">0.90</td><td class="r">60%</td><td class="r">50%</td><td class="r">1.00</td></tr>
+        <tr><td>Qwen 3.7 Max</td><td class="r">50</td><td class="r">0.81</td><td class="r">86%</td><td class="r">10%</td><td class="r">1.00</td></tr>
+        <tr><td>GPT-5.6 Luna</td><td class="r">50</td><td class="r">0.92</td><td class="r">52%</td><td class="r">38%</td><td class="r">1.00</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Headline findings</h2>
+  <ol>
+    <li><strong>Unfaithful ordering is the baseline norm for every model.</strong> At C0, 52–76% of loan narratives mis-order features and mean ρ sits between −0.10 and 0.40 — prose order is essentially uninformative about importance.</li>
+    <li><strong>The strongest models fail most politely.</strong> The tone-ordered (good-news-first) share of trap narratives is highest for Kimi K3 (50%) and Gemini 3.6 Flash (42%) on loans, and for Gemini (54%) and Kimi (50%) on network alerts. A typical Kimi miss: for <span class="eq">(Recent Inquiries −0.47, Credit Score +0.40, Loan Amount +0.24)</span> it leads with “your strong credit score” and buries the larger negative inquiries last.</li>
+    <li><strong>Instruction-compliance splits the fleet three ways</strong> — and that is the point. <em>Robust:</em> Gemini 3.6 Flash, Kimi K3, Qwen 3.7 Max, GPT-5.6 Luna become faithful under the ordering instruction (C1 ρ = 1.00, 0% inverted) and stay faithful under competing warmth and six features. <em>Partial:</em> GLM-5.2 (ρ = 0.65, 22% still inverted at C1) and Claude Haiku 4.5 (ρ = 0.82, 20%) improve but degrade again under warmth (33% and 40%). <em>None:</em> SmolLM3-3B is unchanged (76% inverted at both C0 and C1). The split cuts across vendors and sizes and is invisible from outside.</li>
+    <li><strong>On real attributions, model identity dominates — and flips across domains.</strong> Baseline inversion on real per-alert TreeSHAP spans 0% (SmolLM3-3B, ρ = 1.00) to 86% (Qwen 3.7 Max), with no size or vendor pattern. The same SmolLM3-3B that is perfectly faithful there is 76% inverted on the loan vectors; Claude Haiku 4.5 shows the same flip (12% vs. 52%). <strong>Faithfulness is a property of the (model, domain, instance) triple, not of the model.</strong></li>
+  </ol>
+
+  <h2>Discussion</h2>
+  <p>Prompting is mitigation, and an unreliable one: the ordering instruction did nothing for SmolLM3-3B and only partly worked for GLM-5.2 and Claude Haiku 4.5, with warmth eroding both. Nor is faithfulness fixed within a model. Because the models under study are exactly the fast workhorse tier that per-decision narration deploys, these are the operative failure rates, not a worst case. A dependable system therefore needs to know whether <em>this</em> output is faithful — and the check costs one regex pass and one statistic per output.</p>
+  <p><strong>Limitations.</strong> First-mention order proxies claimed importance; the loan vectors are synthetic (the network case study, by contrast, scores real per-alert TreeSHAP from a detector trained on synthetic SDN traffic); the uncertainty tripwire is proposed but not evaluated; and the stress conditions C1/C2 have so far been run on the loan domain only, with the network-domain replication in progress.</p>
+
+  <h2>Data &amp; provenance</h2>
+  <div class="grid g2">
+    <div class="card">
+      <h3>Loan decisions — synthetic SHAP</h3>
+      <p class="small"><code>data/loan_synthetic_shap_instances.csv</code> — 25 three-feature + 10 six-feature synthetic SHAP vectors (seeds 42/43), the exact instances used in all reported runs; 82 trap instances across the 85-generation run matrix. Produced by the seeded generator in §2 of the notebook; the committed CSV is canonical so results don't depend on RNG/library versions. <a href="#loan" data-tab="loan">Explore →</a></p>
+    </div>
+    <div class="card">
+      <h3>Network intrusion — real TreeSHAP</h3>
+      <p class="small"><code>data/network_traffic.csv</code> — synthetic SDN traffic (10,005 flows, ~20% anomalous) from <em>Synthetic Network Traffic Dataset for Anomaly Detection Using Machine Learning in SDN Environments</em>, Mendeley Data V1, DOI <a href="https://doi.org/10.17632/4pnwdgt7b7.1">10.17632/4pnwdgt7b7.1</a>. Simulated attacks include DDoS, port scans, exfiltration, brute force, and protocol misuse. A Random Forest + SMOTE detector is trained on it and per-alert TreeSHAP top-5 drivers are narrated. <a href="#net" data-tab="net">Explore →</a></p>
+    </div>
+  </div>
+
+  <h2>Reproducing</h2>
+  <p>Open <a href="https://colab.research.google.com/github/wawa3070/valence-magnitude-inversion/blob/main/Inversion_Experiment.ipynb">the notebook in Colab</a> — it runs top-to-bottom on a free T4. The GPU is only needed for the local SmolLM3-3B rows; API models are optional (add <code>OPENROUTER_API_KEY</code> and/or <code>GEMINI_API_KEY</code> in Colab Secrets, and any model without a key is skipped with a note). Both CSVs load directly from the repo, so there is nothing to download and no Drive mount.</p>
+
+  <h2>References</h2>
+  <ol class="refs small">
+    <li>S. Lundberg and S.-I. Lee. A unified approach to interpreting model predictions. <em>NeurIPS</em>, 2017.</li>
+    <li>L. Kuhn, Y. Gal, and S. Farquhar. Semantic uncertainty: Linguistic invariances for uncertainty estimation in natural language generation. <em>ICLR</em>, 2023.</li>
+    <li>P. Manakul, A. Liusie, and M. Gales. SelfCheckGPT: Zero-resource black-box hallucination detection for generative large language models. <em>EMNLP</em>, 2023.</li>
+    <li>A. Zou et al. Representation engineering: A top-down approach to AI transparency. arXiv:2310.01405, 2023.</li>
+    <li>K. Matton, R. O. Ness, J. Guttag, and E. Kıcıman. Walk the talk? Measuring the faithfulness of large language model explanations. arXiv:2504.14150, 2025.</li>
+    <li>G. Mermigkis, D. Metaxakis, M. Tyrovolas, et al. A two-stage LLM framework for accessible and verified XAI explanations. arXiv:2604.12543, 2026.</li>
+    <li>J. Kim, S. Mun, S. Lee, J. Cho, and J. Ok. Towards faithful agentic XAI: A verification method and an open-world benchmark. arXiv:2605.27879, 2026.</li>
+    <li>L. Dwiyanti, S. R. Wibisono, and H. Nambo. ContextualSHAP: Enhancing SHAP explanations through contextual language generation. arXiv:2512.07178, 2025.</li>
+  </ol>
+</section>
+
+<!-- ─────────────────────────── LOAN ─────────────────────────── -->
+<section id="panel-loan" role="tabpanel" aria-labelledby="tab-loan" hidden>
+  <h2 style="margin-top:6px">Loan data explorer</h2>
+  <p>Every committed instance from <code>data/loan_synthetic_shap_instances.csv</code>. Magnitude ranking and tone ordering are computed in the browser with the notebook's own definitions; <strong>Is trap?</strong> is the flag committed in the CSV.</p>
+  <p class="hint"><strong>Hover</strong> (or focus with <kbd>Tab</kbd>) a row to see the exact <code>C0</code>, <code>C1</code> and <code>C2</code> prompts sent to the models for that instance. <strong>Click</strong> to pin a row.</p>
+  <div class="legend">
+    <span class="k"><span class="sw pos"></span> positive SHAP (toward approval)</span>
+    <span class="k"><span class="sw neg"></span> negative SHAP (toward denial)</span>
+    <span class="k"><span class="ord"><span class="step moved">dashed</span></span> position where the tone order departs from the magnitude ranking</span>
+  </div>
+  <div class="explorer">
+    <div>
+      <div class="controls">
+        <label>Feature set
+          <select id="loan-fs"><option value="all">all</option><option value="3feat">3feat</option><option value="6feat">6feat</option></select>
+        </label>
+        <label>Decision
+          <select id="loan-dec"><option value="all">all</option><option value="approved">approved</option><option value="denied">denied</option></select>
+        </label>
+        <label>Trap
+          <select id="loan-trap"><option value="all">all</option><option value="yes">traps only</option><option value="no">non-traps only</option></select>
+        </label>
+        <label><input type="search" id="loan-q" placeholder="search feature or id"></label>
+        <span class="count" id="loan-count"></span>
+      </div>
+      <div class="tablewrap">
+        <table id="loan-table">
+          <thead><tr>
+            <th>Instance</th><th>Decision</th><th>Features &amp; SHAP value</th>
+            <th>Magnitude ranking<br><span class="small muted" style="text-transform:none;letter-spacing:0">|SHAP| desc</span></th>
+            <th>Tone ordering<br><span class="small muted" style="text-transform:none;letter-spacing:0">good news first</span></th>
+            <th>Is trap?</th>
+          </tr></thead>
+          <tbody id="loan-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <aside class="panel" id="loan-panel" aria-live="polite"></aside>
+  </div>
+</section>
+
+<!-- ─────────────────────────── NETWORK ─────────────────────────── -->
+<section id="panel-net" role="tabpanel" aria-labelledby="tab-net" hidden>
+  <h2 style="margin-top:6px">Network traffic explorer</h2>
+  <p>Real per-alert TreeSHAP from <code>data/network_traffic.csv</code>. The notebook's §3 pipeline is reproduced exactly — Random Forest + SMOTE (<code>random_state=42</code>), a 10% stratified test split, TreeSHAP on the anomaly class, top-5 drivers per alert — then the seed-42 shuffled list of predicted anomalies is scanned until 50 traps are collected. All <span id="net-n">139</span> scanned alerts are listed here; the 50 that entered the experiment are marked <em>selected</em>.</p>
+  <p class="hint"><strong>Hover</strong> (or focus with <kbd>Tab</kbd>) a row for the prompts. <code>C0</code> is the prompt actually used — the network experiment runs C0 only; <code>C1</code>/<code>C2</code> are shown as the loan conditions' instruction suffixes applied to this alert, for comparison. <strong>Click</strong> to pin.</p>
+  <div class="legend">
+    <span class="k"><span class="sw pos"></span> positive SHAP (toward ANOMALY)</span>
+    <span class="k"><span class="sw neg"></span> negative SHAP (toward NORMAL)</span>
+    <span class="k"><span class="ord"><span class="step moved">dashed</span></span> position where the tone order departs from the magnitude ranking</span>
+  </div>
+  <div class="explorer">
+    <div>
+      <div class="controls">
+        <label>Trap
+          <select id="net-trap"><option value="all">all</option><option value="yes">traps only</option><option value="no">non-traps only</option></select>
+        </label>
+        <label>In experiment
+          <select id="net-sel"><option value="all">all scanned</option><option value="yes">selected 50 only</option></select>
+        </label>
+        <label><input type="search" id="net-q" placeholder="search feature or alert id"></label>
+        <span class="count" id="net-count"></span>
+      </div>
+      <div class="tablewrap">
+        <table id="net-table">
+          <thead><tr>
+            <th>Alert</th><th>Flagged</th><th>Features &amp; SHAP value<br><span class="small muted" style="text-transform:none;letter-spacing:0">top-5 drivers</span></th>
+            <th>Magnitude ranking<br><span class="small muted" style="text-transform:none;letter-spacing:0">|SHAP| desc</span></th>
+            <th>Tone ordering<br><span class="small muted" style="text-transform:none;letter-spacing:0">good news first</span></th>
+            <th>Is trap?</th>
+          </tr></thead>
+          <tbody id="net-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <aside class="panel" id="net-panel" aria-live="polite"></aside>
+  </div>
+  <p class="small muted" style="margin-top:14px">Detector held-out performance on this split: AUC-ROC <span id="net-auc" class="num"></span>, anomaly-class precision <span id="net-prec" class="num"></span> / recall <span id="net-rec" class="num"></span> (<span id="net-flag" class="num"></span> of <span id="net-test" class="num"></span> test flows flagged). Natural trap rate among scanned alerts: <span id="net-rate" class="num"></span> (the paper reports ≈39% for its run; small differences come from library versions).</p>
+</section>
+
+</main>
+
+<footer><div class="wrap">
+  <p style="margin:0">Valence–Magnitude Inversion · project page for <a href="https://github.com/wawa3070/valence-magnitude-inversion">wawa3070/valence-magnitude-inversion</a>. Loan values come from the committed CSV; network SHAP values are regenerated from the notebook's §3 pipeline at seed 42.</p>
+</div></footer>
+
+<button class="themebtn" id="themebtn" type="button">Theme</button>
+
+<script id="loan-data" type="application/json">[{"instance_id": "loan3_00", "feature_set": "3feat", "seed": 42, "features": ["Loan_Amount", "Credit_Score", "Employment_Length"], "shap": [-0.43, -0.1, 0.59], "decision": "approved", "is_trap": true}, {"instance_id": "loan3_01", "feature_set": "3feat", "seed": 42, "features": ["Debt_Ratio", "Employment_Length", "Recent_Inquiries"], "shap": [-0.56, 0.4, 0.5], "decision": "approved", "is_trap": true}, {"instance_id": "loan3_02", "feature_set": "3feat", "seed": 42, "features": ["Credit_Score", "Recent_Inquiries", "Loan_Amount"], "shap": [0.4, -0.47, 0.24], "decision": "approved", "is_trap": true}, {"instance_id": "loan3_03", "feature_set": "3feat", "seed": 42, "features": ["Annual_Income", "Employment_Length", "Recent_Inquiries"], "shap": [-0.07, -0.13, 0.43], "decision": "approved", "is_trap": true}, {"instance_id": "loan3_04", "feature_set": "3feat", "seed": 42, "features": ["Recent_Inquiries", "Debt_Ratio", "Employment_Length"], "shap": [0.15, 0.12, -0.31], "decision": "denied", "is_trap": true}, {"instance_id": "loan3_05", "feature_set": "3feat", "seed": 42, "features": ["Debt_Ratio", "Recent_Inquiries", "Credit_Score"], "shap": [-0.22, 0.51, -0.49], "decision": "denied", "is_trap": true}, {"instance_id": "loan3_06", "feature_set": "3feat", "seed": 42, "features": ["Employment_Length", "Annual_Income", "Credit_Score"], "shap": [0.05, -0.48, 0.42], "decision": "denied", "is_trap": true}, {"instance_id": "loan3_07", "feature_set": "3feat", "seed": 42, "features": ["Debt_Ratio", "Loan_Amount", "Employment_Length"], "shap": [-0.11, -0.42, 0.31], "decision": "denied", "is_trap": true}, {"instance_id": "loan3_08", "feature_set": "3feat", "seed": 42, "features": ["Credit_Score", "Annual_Income", "Loan_Amount"], "shap": [0.2, -0.21, -0.41], "decision": "denied", "is_trap": true}, {"instance_id": "loan3_09", "feature_set": "3feat", "seed": 42, "features": ["Employment_Length", "Loan_Amount", "Debt_Ratio"], "shap": [-0.14, 0.06, -0.1], "decision": "denied", "is_trap": true}, {"instance_id": "loan3_10", "feature_set": "3feat", "seed": 42, "features": ["Debt_Ratio", "Loan_Amount", "Employment_Length"], "shap": [-0.3, 0.26, -0.22], "decision": "denied", "is_trap": true}, {"instance_id": "loan3_11", "feature_set": "3feat", "seed": 42, "features": ["Annual_Income", "Credit_Score", "Recent_Inquiries"], "shap": [-0.55, -0.43, 0.2], "decision": "denied", "is_trap": true}, {"instance_id": "loan3_12", "feature_set": "3feat", "seed": 42, "features": ["Recent_Inquiries", "Employment_Length", "Debt_Ratio"], "shap": [-0.1, 0.55, -0.3], "decision": "approved", "is_trap": true}, {"instance_id": "loan3_13", "feature_set": "3feat", "seed": 42, "features": ["Annual_Income", "Loan_Amount", "Debt_Ratio"], "shap": [0.47, -0.45, 0.29], "decision": "approved", "is_trap": true}, {"instance_id": "loan3_14", "feature_set": "3feat", "seed": 42, "features": ["Employment_Length", "Debt_Ratio", "Credit_Score"], "shap": [-0.07, 0.32, -0.23], "decision": "approved", "is_trap": true}, {"instance_id": "loan3_15", "feature_set": "3feat", "seed": 42, "features": ["Annual_Income", "Employment_Length", "Credit_Score"], "shap": [0.37, 0.24, -0.38], "decision": "approved", "is_trap": true}, {"instance_id": "loan3_16", "feature_set": "3feat", "seed": 42, "features": ["Employment_Length", "Credit_Score", "Annual_Income"], "shap": [0.32, -0.57, 0.36], "decision": "approved", "is_trap": true}, {"instance_id": "loan3_17", "feature_set": "3feat", "seed": 42, "features": ["Employment_Length", "Loan_Amount", "Annual_Income"], "shap": [0.06, -0.5, 0.54], "decision": "approved", "is_trap": true}, {"instance_id": "loan3_18", "feature_set": "3feat", "seed": 42, "features": ["Credit_Score", "Annual_Income", "Employment_Length"], "shap": [0.41, -0.45, 0.47], "decision": "approved", "is_trap": true}, {"instance_id": "loan3_19", "feature_set": "3feat", "seed": 42, "features": ["Recent_Inquiries", "Employment_Length", "Loan_Amount"], "shap": [0.56, 0.14, -0.07], "decision": "approved", "is_trap": false}, {"instance_id": "loan3_20", "feature_set": "3feat", "seed": 42, "features": ["Employment_Length", "Credit_Score", "Recent_Inquiries"], "shap": [0.54, -0.34, 0.22], "decision": "approved", "is_trap": true}, {"instance_id": "loan3_21", "feature_set": "3feat", "seed": 42, "features": ["Debt_Ratio", "Loan_Amount", "Credit_Score"], "shap": [-0.16, 0.22, -0.48], "decision": "denied", "is_trap": true}, {"instance_id": "loan3_22", "feature_set": "3feat", "seed": 42, "features": ["Employment_Length", "Annual_Income", "Credit_Score"], "shap": [-0.11, 0.13, -0.28], "decision": "denied", "is_trap": true}, {"instance_id": "loan3_23", "feature_set": "3feat", "seed": 42, "features": ["Recent_Inquiries", "Credit_Score", "Loan_Amount"], "shap": [0.48, 0.06, -0.11], "decision": "approved", "is_trap": true}, {"instance_id": "loan3_24", "feature_set": "3feat", "seed": 42, "features": ["Annual_Income", "Debt_Ratio", "Recent_Inquiries"], "shap": [-0.53, 0.38, 0.28], "decision": "approved", "is_trap": true}, {"instance_id": "loan6_00", "feature_set": "6feat", "seed": 43, "features": ["Loan_Amount", "Debt_Ratio", "Recent_Inquiries", "Employment_Length", "Annual_Income", "Credit_Score"], "shap": [0.17, -0.46, 0.2, 0.28, -0.3, 0.58], "decision": "approved", "is_trap": true}, {"instance_id": "loan6_01", "feature_set": "6feat", "seed": 43, "features": ["Annual_Income", "Recent_Inquiries", "Debt_Ratio", "Credit_Score", "Loan_Amount", "Employment_Length"], "shap": [0.36, 0.12, 0.24, 0.33, -0.22, -0.28], "decision": "approved", "is_trap": true}, {"instance_id": "loan6_02", "feature_set": "6feat", "seed": 43, "features": ["Recent_Inquiries", "Loan_Amount", "Debt_Ratio", "Credit_Score", "Employment_Length", "Annual_Income"], "shap": [0.57, -0.32, 0.22, -0.21, -0.3, -0.4], "decision": "denied", "is_trap": true}, {"instance_id": "loan6_03", "feature_set": "6feat", "seed": 43, "features": ["Debt_Ratio", "Loan_Amount", "Credit_Score", "Annual_Income", "Recent_Inquiries", "Employment_Length"], "shap": [-0.46, -0.36, -0.32, -0.55, 0.33, -0.35], "decision": "denied", "is_trap": true}, {"instance_id": "loan6_04", "feature_set": "6feat", "seed": 43, "features": ["Debt_Ratio", "Recent_Inquiries", "Employment_Length", "Credit_Score", "Loan_Amount", "Annual_Income"], "shap": [0.17, -0.14, -0.32, -0.4, -0.07, -0.12], "decision": "denied", "is_trap": true}, {"instance_id": "loan6_05", "feature_set": "6feat", "seed": 43, "features": ["Debt_Ratio", "Employment_Length", "Credit_Score", "Annual_Income", "Recent_Inquiries", "Loan_Amount"], "shap": [0.16, 0.15, -0.29, 0.27, 0.09, 0.58], "decision": "approved", "is_trap": true}, {"instance_id": "loan6_06", "feature_set": "6feat", "seed": 43, "features": ["Employment_Length", "Debt_Ratio", "Annual_Income", "Credit_Score", "Recent_Inquiries", "Loan_Amount"], "shap": [0.08, -0.51, -0.4, 0.32, -0.45, 0.05], "decision": "denied", "is_trap": true}, {"instance_id": "loan6_07", "feature_set": "6feat", "seed": 43, "features": ["Annual_Income", "Debt_Ratio", "Employment_Length", "Recent_Inquiries", "Credit_Score", "Loan_Amount"], "shap": [-0.29, 0.48, -0.1, 0.18, 0.55, 0.11], "decision": "approved", "is_trap": true}, {"instance_id": "loan6_08", "feature_set": "6feat", "seed": 43, "features": ["Loan_Amount", "Debt_Ratio", "Employment_Length", "Recent_Inquiries", "Annual_Income", "Credit_Score"], "shap": [-0.52, 0.32, 0.5, 0.24, 0.07, -0.16], "decision": "approved", "is_trap": true}, {"instance_id": "loan6_09", "feature_set": "6feat", "seed": 43, "features": ["Employment_Length", "Recent_Inquiries", "Loan_Amount", "Credit_Score", "Annual_Income", "Debt_Ratio"], "shap": [0.16, -0.36, 0.37, 0.38, -0.45, -0.28], "decision": "denied", "is_trap": true}]</script>
+<script id="net-data" type="application/json">{"feature_names": ["source_ip_int", "destination_ip_int", "source_port", "destination_port", "protocol", "duration", "packet_count", "bytes_sent", "bytes_received", "bytes_per_packet", "hour_of_day", "day_of_week"], "n_scanned": 139, "n_traps": 50, "auc": 1.0, "precision_anom": 0.99, "recall_anom": 1.0, "f1_anom": 0.995, "n_test": 1001, "n_flagged": 203, "alerts": [{"alert_id": "alert_000", "row_index": 61, "time": "2025-04-06 23:54:58", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.2151, 0.1383, 0.103, 0.0599, -0.0256], "is_trap": false, "selected": false, "raw": {"source_port": 21229.0, "destination_port": 57151.0, "protocol": 0.0, "duration": 37.992404017568006, "packet_count": 293.0, "bytes_sent": 193480.0, "bytes_received": 2648.0, "bytes_per_packet": 660.3412969283277}}, {"alert_id": "alert_001", "row_index": 5410, "time": "2025-04-06 21:40:08", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.2143, 0.1377, 0.1029, 0.0588, -0.0244], "is_trap": false, "selected": false, "raw": {"source_port": 57174.0, "destination_port": 40701.0, "protocol": 0.0, "duration": 53.48728367009234, "packet_count": 381.0, "bytes_sent": 349470.0, "bytes_received": 2195.0, "bytes_per_packet": 917.2440944881888}}, {"alert_id": "alert_002", "row_index": 1402, "time": "2025-04-06 21:10:28", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "duration", "day_of_week", "bytes_sent"], "shap": [0.1799, 0.1673, 0.0426, 0.0419, 0.0236], "is_trap": false, "selected": false, "raw": {"source_port": 14693.0, "destination_port": 3540.0, "protocol": 0.0, "duration": 0.0632289071076863, "packet_count": 3.0, "bytes_sent": 52.0, "bytes_received": 45.0, "bytes_per_packet": 17.333333333333332}}, {"alert_id": "alert_003", "row_index": 295, "time": "2025-04-06 20:30:18", "true_label": 1, "proba": 1.0, "features": ["bytes_received", "destination_port", "day_of_week", "bytes_sent", "hour_of_day"], "shap": [0.1941, 0.1837, 0.0584, 0.0311, 0.0174], "is_trap": false, "selected": false, "raw": {"source_port": 52793.0, "destination_port": 3389.0, "protocol": 0.0, "duration": 1.84862005299511, "packet_count": 29.0, "bytes_sent": 1523.0, "bytes_received": 1163.0, "bytes_per_packet": 52.51724137931034}}, {"alert_id": "alert_004", "row_index": 34, "time": "2025-04-07 01:15:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "protocol", "packet_count", "duration"], "shap": [0.261, 0.1031, 0.0528, 0.0501, 0.027], "is_trap": false, "selected": false, "raw": {"source_port": 4492.0, "destination_port": 51357.0, "protocol": 5.0, "duration": 7.523650782769344, "packet_count": 121.0, "bytes_sent": 14205.0, "bytes_received": 18200.0, "bytes_per_packet": 117.39669421487604}}, {"alert_id": "alert_005", "row_index": 2308, "time": "2025-04-06 22:43:58", "true_label": 1, "proba": 1.0, "features": ["bytes_received", "day_of_week", "bytes_sent", "duration", "destination_port"], "shap": [0.2858, 0.0928, 0.0586, 0.0544, -0.0453], "is_trap": false, "selected": false, "raw": {"source_port": 29369.0, "destination_port": 22.0, "protocol": 0.0, "duration": 0.9670713900378552, "packet_count": 35.0, "bytes_sent": 1749.0, "bytes_received": 690.0, "bytes_per_packet": 49.97142857142857}}, {"alert_id": "alert_006", "row_index": 4316, "time": "2025-04-06 23:36:48", "true_label": 1, "proba": 1.0, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "protocol"], "shap": [0.2175, 0.1703, 0.1183, -0.068, -0.0387], "is_trap": true, "selected": true, "raw": {"source_port": 10608.0, "destination_port": 443.0, "protocol": 1.0, "duration": 0.1437251032713816, "packet_count": 1671.0, "bytes_sent": 54347.0, "bytes_received": 485.0, "bytes_per_packet": 32.52363853979653}}, {"alert_id": "alert_007", "row_index": 7786, "time": "2025-04-07 01:18:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "protocol", "packet_count", "duration"], "shap": [0.3194, 0.1226, 0.073, -0.0471, 0.0431], "is_trap": true, "selected": true, "raw": {"source_port": 35291.0, "destination_port": 49812.0, "protocol": 3.0, "duration": 9.548168372067924, "packet_count": 54.0, "bytes_sent": 17222.0, "bytes_received": 6761.0, "bytes_per_packet": 318.9259259259259}}, {"alert_id": "alert_008", "row_index": 8412, "time": "2025-04-06 21:36:58", "true_label": 1, "proba": 1.0, "features": ["bytes_received", "destination_port", "day_of_week", "bytes_sent", "duration"], "shap": [0.1934, 0.1748, 0.0602, 0.0299, 0.022], "is_trap": false, "selected": false, "raw": {"source_port": 62646.0, "destination_port": 3389.0, "protocol": 0.0, "duration": 1.080657239010249, "packet_count": 32.0, "bytes_sent": 720.0, "bytes_received": 1756.0, "bytes_per_packet": 22.5}}, {"alert_id": "alert_009", "row_index": 5190, "time": "2025-04-07 01:13:28", "true_label": 1, "proba": 0.97, "features": ["destination_port", "bytes_received", "hour_of_day", "bytes_sent", "day_of_week"], "shap": [0.2322, 0.19, 0.0375, 0.0297, -0.0186], "is_trap": false, "selected": false, "raw": {"source_port": 62106.0, "destination_port": 3389.0, "protocol": 0.0, "duration": 1.6752992343022517, "packet_count": 27.0, "bytes_sent": 1742.0, "bytes_received": 1665.0, "bytes_per_packet": 64.51851851851852}}, {"alert_id": "alert_010", "row_index": 9122, "time": "2025-04-06 23:20:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "protocol", "duration"], "shap": [0.2535, 0.1109, 0.0819, 0.072, -0.0366], "is_trap": false, "selected": false, "raw": {"source_port": 35833.0, "destination_port": 65081.0, "protocol": 3.0, "duration": 4.094990925626403, "packet_count": 143.0, "bytes_sent": 12673.0, "bytes_received": 14261.0, "bytes_per_packet": 88.62237762237763}}, {"alert_id": "alert_011", "row_index": 5234, "time": "2025-04-06 23:10:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.2107, 0.1393, 0.1011, 0.0546, -0.0265], "is_trap": false, "selected": false, "raw": {"source_port": 1645.0, "destination_port": 33573.0, "protocol": 0.0, "duration": 50.660372613633264, "packet_count": 310.0, "bytes_sent": 540618.0, "bytes_received": 3974.0, "bytes_per_packet": 1743.9290322580646}}, {"alert_id": "alert_012", "row_index": 4300, "time": "2025-04-06 22:11:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "day_of_week", "duration", "hour_of_day"], "shap": [0.2182, 0.1371, 0.0422, 0.042, 0.0185], "is_trap": false, "selected": false, "raw": {"source_port": 9699.0, "destination_port": 52428.0, "protocol": 0.0, "duration": 0.0842681505620231, "packet_count": 3.0, "bytes_sent": 98.0, "bytes_received": 80.0, "bytes_per_packet": 32.666666666666664}}, {"alert_id": "alert_013", "row_index": 3988, "time": "2025-04-06 21:47:18", "true_label": 1, "proba": 0.94, "features": ["destination_port", "bytes_received", "day_of_week", "bytes_sent", "hour_of_day"], "shap": [0.2313, 0.1795, 0.0509, -0.037, 0.0197], "is_trap": true, "selected": true, "raw": {"source_port": 5124.0, "destination_port": 3389.0, "protocol": 0.0, "duration": 1.912568647175352, "packet_count": 24.0, "bytes_sent": 1968.0, "bytes_received": 1349.0, "bytes_per_packet": 82.0}}, {"alert_id": "alert_014", "row_index": 4381, "time": "2025-04-06 20:26:28", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "protocol", "packet_count", "duration"], "shap": [0.2757, 0.1063, 0.0667, 0.0512, -0.0363], "is_trap": false, "selected": false, "raw": {"source_port": 62388.0, "destination_port": 50081.0, "protocol": 3.0, "duration": 3.4458679479674124, "packet_count": 109.0, "bytes_sent": 16972.0, "bytes_received": 15212.0, "bytes_per_packet": 155.70642201834863}}, {"alert_id": "alert_015", "row_index": 2955, "time": "2025-04-06 23:41:38", "true_label": 1, "proba": 1.0, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "protocol"], "shap": [0.2188, 0.1708, 0.1162, -0.0686, -0.0396], "is_trap": true, "selected": true, "raw": {"source_port": 16185.0, "destination_port": 80.0, "protocol": 1.0, "duration": 0.6897420760135865, "packet_count": 1511.0, "bytes_sent": 71050.0, "bytes_received": 476.0, "bytes_per_packet": 47.02183984116479}}, {"alert_id": "alert_016", "row_index": 2060, "time": "2025-04-07 00:08:08", "true_label": 1, "proba": 0.94, "features": ["bytes_received", "hour_of_day", "bytes_sent", "destination_port", "duration"], "shap": [0.3019, 0.08, 0.0518, -0.0378, 0.0331], "is_trap": true, "selected": true, "raw": {"source_port": 2513.0, "destination_port": 22.0, "protocol": 0.0, "duration": 1.892522379685004, "packet_count": 33.0, "bytes_sent": 1942.0, "bytes_received": 1306.0, "bytes_per_packet": 58.84848484848485}}, {"alert_id": "alert_017", "row_index": 8458, "time": "2025-04-06 23:20:18", "true_label": 1, "proba": 0.99, "features": ["destination_port", "bytes_sent", "packet_count", "bytes_received", "day_of_week"], "shap": [0.1554, 0.1097, 0.0885, 0.0839, 0.0308], "is_trap": false, "selected": false, "raw": {"source_port": 56771.0, "destination_port": 8080.0, "protocol": 0.0, "duration": 0.6367784470598965, "packet_count": 1269.0, "bytes_sent": 90866.0, "bytes_received": 763.0, "bytes_per_packet": 71.60441292356185}}, {"alert_id": "alert_018", "row_index": 6601, "time": "2025-04-06 21:01:58", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "day_of_week", "duration", "bytes_sent"], "shap": [0.2084, 0.1437, 0.0433, 0.0419, 0.0186], "is_trap": false, "selected": false, "raw": {"source_port": 40099.0, "destination_port": 14789.0, "protocol": 0.0, "duration": 0.0434067416926299, "packet_count": 1.0, "bytes_sent": 49.0, "bytes_received": 45.0, "bytes_per_packet": 49.0}}, {"alert_id": "alert_019", "row_index": 6292, "time": "2025-04-07 00:35:53", "true_label": 0, "proba": 0.8, "features": ["bytes_received", "destination_port", "hour_of_day", "bytes_sent", "duration"], "shap": [0.2237, -0.0718, 0.0617, 0.0529, 0.048], "is_trap": true, "selected": true, "raw": {"source_port": 10751.0, "destination_port": 23.0, "protocol": 0.0, "duration": 0.6142922635674629, "packet_count": 12.0, "bytes_sent": 678.0, "bytes_received": 203.0, "bytes_per_packet": 56.5}}, {"alert_id": "alert_020", "row_index": 8904, "time": "2025-04-06 22:17:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.2008, 0.1405, 0.104, 0.0565, -0.0256], "is_trap": false, "selected": false, "raw": {"source_port": 58761.0, "destination_port": 8529.0, "protocol": 0.0, "duration": 53.39981278180612, "packet_count": 470.0, "bytes_sent": 979682.0, "bytes_received": 3970.0, "bytes_per_packet": 2084.4297872340426}}, {"alert_id": "alert_021", "row_index": 934, "time": "2025-04-06 22:01:58", "true_label": 1, "proba": 1.0, "features": ["bytes_received", "day_of_week", "bytes_sent", "duration", "destination_port"], "shap": [0.2821, 0.0926, 0.0625, 0.0497, -0.0415], "is_trap": false, "selected": false, "raw": {"source_port": 3270.0, "destination_port": 22.0, "protocol": 0.0, "duration": 1.6514749061955616, "packet_count": 17.0, "bytes_sent": 640.0, "bytes_received": 1805.0, "bytes_per_packet": 37.64705882352941}}, {"alert_id": "alert_022", "row_index": 3123, "time": "2025-04-06 20:42:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "day_of_week"], "shap": [0.2, 0.1196, 0.1074, 0.0352, 0.0271], "is_trap": false, "selected": false, "raw": {"source_port": 9849.0, "destination_port": 52189.0, "protocol": 0.0, "duration": 19.642254777603416, "packet_count": 437.0, "bytes_sent": 450996.0, "bytes_received": 1924.0, "bytes_per_packet": 1032.027459954233}}, {"alert_id": "alert_023", "row_index": 3916, "time": "2025-04-06 20:14:58", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "protocol", "packet_count", "bytes_received"], "shap": [0.3227, 0.115, 0.0832, -0.0515, 0.0435], "is_trap": true, "selected": true, "raw": {"source_port": 18978.0, "destination_port": 54290.0, "protocol": 5.0, "duration": 2.4709630929611235, "packet_count": 97.0, "bytes_sent": 14346.0, "bytes_received": 15745.0, "bytes_per_packet": 147.89690721649484}}, {"alert_id": "alert_024", "row_index": 7347, "time": "2025-04-06 21:16:08", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "day_of_week", "duration", "bytes_sent"], "shap": [0.208, 0.1447, 0.0432, 0.0418, 0.0181], "is_trap": false, "selected": false, "raw": {"source_port": 20352.0, "destination_port": 9782.0, "protocol": 0.0, "duration": 0.0809425101001664, "packet_count": 3.0, "bytes_sent": 70.0, "bytes_received": 49.0, "bytes_per_packet": 23.333333333333332}}, {"alert_id": "alert_025", "row_index": 1257, "time": "2025-04-06 22:52:58", "true_label": 1, "proba": 1.0, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "day_of_week"], "shap": [0.2008, 0.1488, 0.1216, -0.0694, 0.0399], "is_trap": true, "selected": true, "raw": {"source_port": 1762.0, "destination_port": 80.0, "protocol": 0.0, "duration": 0.31138022634344, "packet_count": 5343.0, "bytes_sent": 58803.0, "bytes_received": 219.0, "bytes_per_packet": 11.00561482313307}}, {"alert_id": "alert_026", "row_index": 9640, "time": "2025-04-06 20:26:08", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.2147, 0.1403, 0.0902, 0.0525, -0.0252], "is_trap": false, "selected": false, "raw": {"source_port": 22151.0, "destination_port": 14435.0, "protocol": 0.0, "duration": 20.5573227147217, "packet_count": 150.0, "bytes_sent": 551158.0, "bytes_received": 3001.0, "bytes_per_packet": 3674.386666666667}}, {"alert_id": "alert_027", "row_index": 2181, "time": "2025-04-07 01:14:58", "true_label": 1, "proba": 0.99, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "protocol"], "shap": [0.2407, 0.2036, 0.1226, -0.0706, -0.0307], "is_trap": true, "selected": true, "raw": {"source_port": 36017.0, "destination_port": 80.0, "protocol": 1.0, "duration": 0.3079145719787751, "packet_count": 2716.0, "bytes_sent": 11648.0, "bytes_received": 968.0, "bytes_per_packet": 4.288659793814433}}, {"alert_id": "alert_028", "row_index": 2230, "time": "2025-04-07 00:20:28", "true_label": 1, "proba": 1.0, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "hour_of_day"], "shap": [0.2081, 0.1654, 0.1359, -0.0684, 0.0305], "is_trap": true, "selected": true, "raw": {"source_port": 61296.0, "destination_port": 443.0, "protocol": 0.0, "duration": 0.1034798736649819, "packet_count": 1162.0, "bytes_sent": 24328.0, "bytes_received": 365.0, "bytes_per_packet": 20.93631669535284}}, {"alert_id": "alert_029", "row_index": 3018, "time": "2025-04-06 21:15:28", "true_label": 1, "proba": 0.99, "features": ["destination_port", "bytes_sent", "protocol", "packet_count", "duration"], "shap": [0.2918, 0.1139, 0.0788, -0.0511, 0.0419], "is_trap": true, "selected": true, "raw": {"source_port": 54127.0, "destination_port": 60491.0, "protocol": 3.0, "duration": 8.273670605001861, "packet_count": 51.0, "bytes_sent": 16157.0, "bytes_received": 6071.0, "bytes_per_packet": 316.80392156862746}}, {"alert_id": "alert_030", "row_index": 609, "time": "2025-04-06 20:58:48", "true_label": 1, "proba": 0.89, "features": ["bytes_received", "day_of_week", "bytes_sent", "destination_port", "hour_of_day"], "shap": [0.2781, 0.0892, 0.067, -0.056, 0.0331], "is_trap": true, "selected": true, "raw": {"source_port": 56698.0, "destination_port": 23.0, "protocol": 0.0, "duration": 1.9824153753138063, "packet_count": 19.0, "bytes_sent": 1495.0, "bytes_received": 873.0, "bytes_per_packet": 78.6842105263158}}, {"alert_id": "alert_031", "row_index": 9536, "time": "2025-04-06 22:50:18", "true_label": 1, "proba": 0.99, "features": ["destination_port", "bytes_sent", "packet_count", "bytes_received", "day_of_week"], "shap": [0.1552, 0.1111, 0.0934, 0.0737, 0.0325], "is_trap": false, "selected": false, "raw": {"source_port": 29430.0, "destination_port": 8080.0, "protocol": 0.0, "duration": 0.9587307375749196, "packet_count": 1630.0, "bytes_sent": 93589.0, "bytes_received": 239.0, "bytes_per_packet": 57.41656441717792}}, {"alert_id": "alert_032", "row_index": 6241, "time": "2025-04-07 00:18:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "duration", "hour_of_day", "packet_count"], "shap": [0.2342, 0.1494, 0.0389, 0.0356, 0.0254], "is_trap": false, "selected": false, "raw": {"source_port": 64784.0, "destination_port": 19951.0, "protocol": 0.0, "duration": 0.0815296918346855, "packet_count": 1.0, "bytes_sent": 53.0, "bytes_received": 49.0, "bytes_per_packet": 53.0}}, {"alert_id": "alert_033", "row_index": 4349, "time": "2025-04-06 21:30:48", "true_label": 1, "proba": 1.0, "features": ["destination_port", "protocol", "packet_count", "duration", "bytes_sent"], "shap": [0.3974, 0.1083, -0.0543, 0.0502, -0.0433], "is_trap": true, "selected": true, "raw": {"source_port": 2015.0, "destination_port": 52896.0, "protocol": 4.0, "duration": 5.997582380657791, "packet_count": 59.0, "bytes_sent": 9876.0, "bytes_received": 8174.0, "bytes_per_packet": 167.38983050847455}}, {"alert_id": "alert_034", "row_index": 5477, "time": "2025-04-06 22:52:48", "true_label": 1, "proba": 1.0, "features": ["bytes_received", "day_of_week", "bytes_sent", "duration", "destination_port"], "shap": [0.284, 0.095, 0.0602, 0.0602, -0.0492], "is_trap": false, "selected": false, "raw": {"source_port": 5806.0, "destination_port": 23.0, "protocol": 0.0, "duration": 0.5851749529772354, "packet_count": 11.0, "bytes_sent": 690.0, "bytes_received": 965.0, "bytes_per_packet": 62.72727272727273}}, {"alert_id": "alert_035", "row_index": 6258, "time": "2025-04-06 22:56:08", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "bytes_received", "day_of_week"], "shap": [0.1522, 0.1063, 0.0935, 0.084, 0.0325], "is_trap": false, "selected": false, "raw": {"source_port": 45835.0, "destination_port": 8080.0, "protocol": 0.0, "duration": 0.2565849969918902, "packet_count": 1337.0, "bytes_sent": 48699.0, "bytes_received": 556.0, "bytes_per_packet": 36.424083769633505}}, {"alert_id": "alert_036", "row_index": 9890, "time": "2025-04-06 21:06:18", "true_label": 1, "proba": 0.89, "features": ["bytes_received", "day_of_week", "duration", "bytes_per_packet", "destination_port"], "shap": [0.2721, 0.088, 0.0549, -0.0521, -0.0446], "is_trap": true, "selected": true, "raw": {"source_port": 28124.0, "destination_port": 23.0, "protocol": 0.0, "duration": 0.7503913686793912, "packet_count": 15.0, "bytes_sent": 1953.0, "bytes_received": 1380.0, "bytes_per_packet": 130.2}}, {"alert_id": "alert_037", "row_index": 3254, "time": "2025-04-06 21:30:28", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "protocol", "duration"], "shap": [0.2186, 0.099, 0.0684, 0.0477, 0.0319], "is_trap": false, "selected": false, "raw": {"source_port": 46861.0, "destination_port": 63579.0, "protocol": 3.0, "duration": 8.426328470568258, "packet_count": 187.0, "bytes_sent": 19341.0, "bytes_received": 16344.0, "bytes_per_packet": 103.427807486631}}, {"alert_id": "alert_038", "row_index": 3819, "time": "2025-04-07 00:48:28", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "protocol", "packet_count", "bytes_received"], "shap": [0.3401, 0.1217, 0.081, -0.048, 0.04], "is_trap": true, "selected": true, "raw": {"source_port": 25651.0, "destination_port": 59535.0, "protocol": 3.0, "duration": 4.847275408349403, "packet_count": 88.0, "bytes_sent": 14237.0, "bytes_received": 15867.0, "bytes_per_packet": 161.7840909090909}}, {"alert_id": "alert_039", "row_index": 7244, "time": "2025-04-06 20:23:48", "true_label": 1, "proba": 1.0, "features": ["bytes_received", "day_of_week", "bytes_sent", "duration", "destination_port"], "shap": [0.2871, 0.0921, 0.0621, 0.0534, -0.0431], "is_trap": false, "selected": false, "raw": {"source_port": 48456.0, "destination_port": 22.0, "protocol": 0.0, "duration": 1.2806421744717311, "packet_count": 15.0, "bytes_sent": 1181.0, "bytes_received": 1514.0, "bytes_per_packet": 78.73333333333333}}, {"alert_id": "alert_040", "row_index": 3468, "time": "2025-04-06 21:36:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "duration", "day_of_week", "packet_count"], "shap": [0.2195, 0.1362, 0.0423, 0.0414, 0.0201], "is_trap": false, "selected": false, "raw": {"source_port": 29363.0, "destination_port": 38729.0, "protocol": 0.0, "duration": 0.0460149735168554, "packet_count": 3.0, "bytes_sent": 59.0, "bytes_received": 64.0, "bytes_per_packet": 19.666666666666668}}, {"alert_id": "alert_041", "row_index": 7288, "time": "2025-04-07 00:08:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "bytes_received", "hour_of_day"], "shap": [0.1654, 0.1286, 0.1065, 0.0853, 0.0274], "is_trap": false, "selected": false, "raw": {"source_port": 50055.0, "destination_port": 8080.0, "protocol": 0.0, "duration": 0.6208682039370373, "packet_count": 5196.0, "bytes_sent": 15362.0, "bytes_received": 700.0, "bytes_per_packet": 2.9565050038491147}}, {"alert_id": "alert_042", "row_index": 5288, "time": "2025-04-06 20:10:58", "true_label": 1, "proba": 0.97, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "day_of_week"], "shap": [0.1992, 0.1467, 0.119, -0.0753, 0.0374], "is_trap": true, "selected": true, "raw": {"source_port": 45005.0, "destination_port": 443.0, "protocol": 0.0, "duration": 0.5422526318311136, "packet_count": 1138.0, "bytes_sent": 85141.0, "bytes_received": 181.0, "bytes_per_packet": 74.81634446397189}}, {"alert_id": "alert_043", "row_index": 1410, "time": "2025-04-06 21:26:48", "true_label": 1, "proba": 0.99, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "day_of_week"], "shap": [0.2208, 0.1744, 0.1129, -0.0696, 0.0375], "is_trap": true, "selected": true, "raw": {"source_port": 22630.0, "destination_port": 443.0, "protocol": 1.0, "duration": 0.4252888862363516, "packet_count": 2920.0, "bytes_sent": 12988.0, "bytes_received": 370.0, "bytes_per_packet": 4.447945205479452}}, {"alert_id": "alert_044", "row_index": 2653, "time": "2025-04-06 23:42:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.2203, 0.1324, 0.1064, 0.0617, -0.0281], "is_trap": false, "selected": false, "raw": {"source_port": 16550.0, "destination_port": 50942.0, "protocol": 0.0, "duration": 45.55150676296735, "packet_count": 461.0, "bytes_sent": 131930.0, "bytes_received": 4479.0, "bytes_per_packet": 286.1822125813449}}, {"alert_id": "alert_045", "row_index": 1708, "time": "2025-04-06 21:44:28", "true_label": 1, "proba": 1.0, "features": ["bytes_received", "day_of_week", "bytes_sent", "duration", "destination_port"], "shap": [0.2854, 0.0929, 0.0677, 0.0472, -0.0463], "is_trap": false, "selected": false, "raw": {"source_port": 31023.0, "destination_port": 23.0, "protocol": 0.0, "duration": 1.7670249072065736, "packet_count": 36.0, "bytes_sent": 888.0, "bytes_received": 1011.0, "bytes_per_packet": 24.666666666666668}}, {"alert_id": "alert_046", "row_index": 4373, "time": "2025-04-07 00:57:18", "true_label": 1, "proba": 1.0, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "protocol"], "shap": [0.2309, 0.1793, 0.1357, -0.0693, -0.0363], "is_trap": true, "selected": true, "raw": {"source_port": 18345.0, "destination_port": 80.0, "protocol": 1.0, "duration": 0.8527698173094435, "packet_count": 1332.0, "bytes_sent": 63792.0, "bytes_received": 878.0, "bytes_per_packet": 47.891891891891895}}, {"alert_id": "alert_047", "row_index": 6543, "time": "2025-04-06 21:52:58", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "bytes_received", "protocol"], "shap": [0.1566, 0.1268, 0.1119, 0.0778, -0.0347], "is_trap": false, "selected": false, "raw": {"source_port": 56689.0, "destination_port": 8080.0, "protocol": 1.0, "duration": 0.1250254800373328, "packet_count": 3399.0, "bytes_sent": 82288.0, "bytes_received": 664.0, "bytes_per_packet": 24.209473374521917}}, {"alert_id": "alert_048", "row_index": 9515, "time": "2025-04-06 20:47:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "protocol", "packet_count", "duration"], "shap": [0.3022, 0.1182, 0.0817, -0.0522, 0.028], "is_trap": true, "selected": true, "raw": {"source_port": 41314.0, "destination_port": 65396.0, "protocol": 4.0, "duration": 5.3955889468290525, "packet_count": 90.0, "bytes_sent": 15343.0, "bytes_received": 9628.0, "bytes_per_packet": 170.4777777777778}}, {"alert_id": "alert_049", "row_index": 5657, "time": "2025-04-06 21:36:28", "true_label": 1, "proba": 1.0, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "day_of_week"], "shap": [0.2099, 0.1559, 0.1222, -0.0708, 0.0408], "is_trap": true, "selected": true, "raw": {"source_port": 50034.0, "destination_port": 80.0, "protocol": 0.0, "duration": 0.3481737719919748, "packet_count": 7666.0, "bytes_sent": 56202.0, "bytes_received": 927.0, "bytes_per_packet": 7.331333159405165}}, {"alert_id": "alert_050", "row_index": 8584, "time": "2025-04-06 22:18:48", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "duration", "day_of_week", "hour_of_day"], "shap": [0.2195, 0.1372, 0.0417, 0.0413, 0.0184], "is_trap": false, "selected": false, "raw": {"source_port": 42620.0, "destination_port": 35015.0, "protocol": 0.0, "duration": 0.0360172240542047, "packet_count": 4.0, "bytes_sent": 58.0, "bytes_received": 65.0, "bytes_per_packet": 14.5}}, {"alert_id": "alert_051", "row_index": 2787, "time": "2025-04-06 22:25:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "protocol", "duration"], "shap": [0.2242, 0.0999, 0.0778, 0.0563, 0.0231], "is_trap": false, "selected": false, "raw": {"source_port": 47677.0, "destination_port": 62382.0, "protocol": 5.0, "duration": 5.994145844332428, "packet_count": 170.0, "bytes_sent": 10476.0, "bytes_received": 7214.0, "bytes_per_packet": 61.62352941176471}}, {"alert_id": "alert_052", "row_index": 2540, "time": "2025-04-06 23:32:28", "true_label": 1, "proba": 1.0, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "day_of_week"], "shap": [0.2014, 0.1617, 0.1263, -0.0718, 0.0394], "is_trap": true, "selected": true, "raw": {"source_port": 57106.0, "destination_port": 443.0, "protocol": 0.0, "duration": 0.2229324343724696, "packet_count": 4839.0, "bytes_sent": 14614.0, "bytes_received": 657.0, "bytes_per_packet": 3.0200454639388306}}, {"alert_id": "alert_053", "row_index": 5602, "time": "2025-04-06 23:23:48", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "bytes_received", "day_of_week"], "shap": [0.151, 0.1093, 0.0924, 0.0841, 0.0333], "is_trap": false, "selected": false, "raw": {"source_port": 12105.0, "destination_port": 8080.0, "protocol": 0.0, "duration": 0.8645734424597521, "packet_count": 2131.0, "bytes_sent": 92958.0, "bytes_received": 694.0, "bytes_per_packet": 43.621773815110274}}, {"alert_id": "alert_054", "row_index": 9922, "time": "2025-04-06 22:28:08", "true_label": 1, "proba": 1.0, "features": ["bytes_received", "day_of_week", "duration", "bytes_sent", "destination_port"], "shap": [0.2885, 0.0917, 0.0597, 0.0572, -0.0507], "is_trap": false, "selected": false, "raw": {"source_port": 52139.0, "destination_port": 23.0, "protocol": 0.0, "duration": 0.6366413765174059, "packet_count": 16.0, "bytes_sent": 750.0, "bytes_received": 1255.0, "bytes_per_packet": 46.875}}, {"alert_id": "alert_055", "row_index": 3308, "time": "2025-04-06 20:55:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "protocol", "duration"], "shap": [0.2458, 0.0989, 0.0471, 0.0459, 0.0327], "is_trap": false, "selected": false, "raw": {"source_port": 35276.0, "destination_port": 58743.0, "protocol": 3.0, "duration": 8.808224515715766, "packet_count": 137.0, "bytes_sent": 17597.0, "bytes_received": 18083.0, "bytes_per_packet": 128.44525547445255}}, {"alert_id": "alert_056", "row_index": 5812, "time": "2025-04-06 23:46:48", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.2141, 0.1352, 0.1031, 0.0535, -0.0293], "is_trap": false, "selected": false, "raw": {"source_port": 52042.0, "destination_port": 46528.0, "protocol": 0.0, "duration": 41.39813462157969, "packet_count": 389.0, "bytes_sent": 796548.0, "bytes_received": 4833.0, "bytes_per_packet": 2047.681233933162}}, {"alert_id": "alert_057", "row_index": 5074, "time": "2025-04-06 20:55:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "packet_count", "protocol", "bytes_sent", "duration"], "shap": [0.3064, 0.078, 0.0652, -0.0397, 0.0283], "is_trap": true, "selected": true, "raw": {"source_port": 38305.0, "destination_port": 55367.0, "protocol": 4.0, "duration": 6.622830008970372, "packet_count": 165.0, "bytes_sent": 8838.0, "bytes_received": 18741.0, "bytes_per_packet": 53.56363636363636}}, {"alert_id": "alert_058", "row_index": 7374, "time": "2025-04-06 20:40:58", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "protocol", "packet_count", "bytes_received"], "shap": [0.2888, 0.095, 0.0645, -0.0506, 0.0404], "is_trap": true, "selected": true, "raw": {"source_port": 54941.0, "destination_port": 56505.0, "protocol": 5.0, "duration": 9.495412981995774, "packet_count": 73.0, "bytes_sent": 10299.0, "bytes_received": 17378.0, "bytes_per_packet": 141.08219178082192}}, {"alert_id": "alert_059", "row_index": 3613, "time": "2025-04-06 21:18:18", "true_label": 1, "proba": 0.99, "features": ["bytes_received", "day_of_week", "bytes_sent", "destination_port", "duration"], "shap": [0.2835, 0.0914, 0.0658, -0.0478, 0.0457], "is_trap": true, "selected": true, "raw": {"source_port": 53520.0, "destination_port": 23.0, "protocol": 0.0, "duration": 1.755516052653056, "packet_count": 34.0, "bytes_sent": 986.0, "bytes_received": 728.0, "bytes_per_packet": 29.0}}, {"alert_id": "alert_060", "row_index": 4600, "time": "2025-04-06 20:11:28", "true_label": 1, "proba": 1.0, "features": ["destination_port", "protocol", "packet_count", "bytes_received", "duration"], "shap": [0.3817, 0.0839, -0.0526, 0.0507, 0.0462], "is_trap": true, "selected": true, "raw": {"source_port": 32937.0, "destination_port": 59111.0, "protocol": 4.0, "duration": 8.247213226145051, "packet_count": 56.0, "bytes_sent": 6053.0, "bytes_received": 19352.0, "bytes_per_packet": 108.08928571428572}}, {"alert_id": "alert_061", "row_index": 6813, "time": "2025-04-07 00:05:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "protocol", "packet_count", "duration"], "shap": [0.2725, 0.1026, 0.0558, 0.0523, 0.0333], "is_trap": false, "selected": false, "raw": {"source_port": 22841.0, "destination_port": 58804.0, "protocol": 5.0, "duration": 9.626238263653867, "packet_count": 103.0, "bytes_sent": 10459.0, "bytes_received": 9631.0, "bytes_per_packet": 101.54368932038837}}, {"alert_id": "alert_062", "row_index": 4333, "time": "2025-04-06 20:23:38", "true_label": 1, "proba": 0.96, "features": ["destination_port", "bytes_received", "day_of_week", "duration", "bytes_per_packet"], "shap": [0.2277, 0.1245, 0.0431, 0.0419, -0.0216], "is_trap": false, "selected": false, "raw": {"source_port": 42712.0, "destination_port": 59962.0, "protocol": 0.0, "duration": 0.072999097039857, "packet_count": 4.0, "bytes_sent": 41.0, "bytes_received": 90.0, "bytes_per_packet": 10.25}}, {"alert_id": "alert_063", "row_index": 6174, "time": "2025-04-06 23:25:38", "true_label": 1, "proba": 1.0, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "protocol"], "shap": [0.2138, 0.1718, 0.1228, -0.0699, -0.0399], "is_trap": true, "selected": true, "raw": {"source_port": 46235.0, "destination_port": 443.0, "protocol": 1.0, "duration": 0.4518684451906791, "packet_count": 1588.0, "bytes_sent": 46719.0, "bytes_received": 817.0, "bytes_per_packet": 29.42002518891688}}, {"alert_id": "alert_064", "row_index": 2681, "time": "2025-04-06 22:43:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "protocol", "packet_count", "duration"], "shap": [0.3338, 0.1254, 0.1044, -0.054, -0.0377], "is_trap": true, "selected": true, "raw": {"source_port": 4905.0, "destination_port": 63631.0, "protocol": 3.0, "duration": 3.1425854562964335, "packet_count": 79.0, "bytes_sent": 13329.0, "bytes_received": 5482.0, "bytes_per_packet": 168.72151898734177}}, {"alert_id": "alert_065", "row_index": 6134, "time": "2025-04-06 21:40:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.2065, 0.1364, 0.1037, 0.0566, -0.0258], "is_trap": false, "selected": false, "raw": {"source_port": 2901.0, "destination_port": 21014.0, "protocol": 0.0, "duration": 50.69700516377251, "packet_count": 281.0, "bytes_sent": 528167.0, "bytes_received": 4767.0, "bytes_per_packet": 1879.5978647686832}}, {"alert_id": "alert_066", "row_index": 3072, "time": "2025-04-06 21:10:43", "true_label": 0, "proba": 0.84, "features": ["bytes_received", "destination_port", "day_of_week", "duration", "hour_of_day"], "shap": [0.2527, -0.1362, 0.0919, 0.0444, 0.0422], "is_trap": true, "selected": true, "raw": {"source_port": 41749.0, "destination_port": 143.0, "protocol": 0.0, "duration": 1.03890969889944, "packet_count": 28.0, "bytes_sent": 1552.0, "bytes_received": 469.0, "bytes_per_packet": 55.42857142857143}}, {"alert_id": "alert_067", "row_index": 2404, "time": "2025-04-06 20:33:08", "true_label": 1, "proba": 1.0, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "day_of_week"], "shap": [0.2221, 0.176, 0.1213, -0.0709, 0.0376], "is_trap": true, "selected": true, "raw": {"source_port": 21579.0, "destination_port": 80.0, "protocol": 1.0, "duration": 0.8947431081997992, "packet_count": 6461.0, "bytes_sent": 23635.0, "bytes_received": 816.0, "bytes_per_packet": 3.658102460919362}}, {"alert_id": "alert_068", "row_index": 8678, "time": "2025-04-06 23:55:58", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "duration", "day_of_week", "packet_count"], "shap": [0.2111, 0.1428, 0.0433, 0.0418, 0.0262], "is_trap": false, "selected": false, "raw": {"source_port": 51675.0, "destination_port": 17442.0, "protocol": 0.0, "duration": 0.0815012821818428, "packet_count": 4.0, "bytes_sent": 44.0, "bytes_received": 86.0, "bytes_per_packet": 11.0}}, {"alert_id": "alert_069", "row_index": 7463, "time": "2025-04-06 23:58:58", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "duration", "day_of_week", "packet_count"], "shap": [0.2165, 0.1375, 0.0433, 0.0421, 0.0202], "is_trap": false, "selected": false, "raw": {"source_port": 10433.0, "destination_port": 61993.0, "protocol": 0.0, "duration": 0.0500617393652469, "packet_count": 4.0, "bytes_sent": 81.0, "bytes_received": 58.0, "bytes_per_packet": 20.25}}, {"alert_id": "alert_070", "row_index": 4335, "time": "2025-04-06 21:52:28", "true_label": 1, "proba": 1.0, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "protocol"], "shap": [0.2202, 0.1711, 0.1183, -0.0702, -0.0396], "is_trap": true, "selected": true, "raw": {"source_port": 43240.0, "destination_port": 80.0, "protocol": 1.0, "duration": 0.7178470347016681, "packet_count": 3884.0, "bytes_sent": 84983.0, "bytes_received": 524.0, "bytes_per_packet": 21.880278063851694}}, {"alert_id": "alert_071", "row_index": 5557, "time": "2025-04-07 00:27:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "duration", "hour_of_day", "packet_count"], "shap": [0.2547, 0.1359, 0.0399, 0.0345, 0.0219], "is_trap": false, "selected": false, "raw": {"source_port": 22640.0, "destination_port": 56880.0, "protocol": 0.0, "duration": 0.0218511992170154, "packet_count": 3.0, "bytes_sent": 47.0, "bytes_received": 93.0, "bytes_per_packet": 15.666666666666666}}, {"alert_id": "alert_072", "row_index": 4877, "time": "2025-04-06 21:32:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "packet_count", "protocol", "bytes_sent", "duration"], "shap": [0.3143, 0.0861, 0.0807, -0.0426, 0.0283], "is_trap": true, "selected": true, "raw": {"source_port": 14319.0, "destination_port": 58663.0, "protocol": 5.0, "duration": 5.468527741052263, "packet_count": 146.0, "bytes_sent": 7200.0, "bytes_received": 11332.0, "bytes_per_packet": 49.31506849315068}}, {"alert_id": "alert_073", "row_index": 9174, "time": "2025-04-07 00:19:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "hour_of_day", "bytes_sent", "duration"], "shap": [0.2044, 0.1967, 0.0534, 0.0399, 0.0211], "is_trap": false, "selected": false, "raw": {"source_port": 51194.0, "destination_port": 3389.0, "protocol": 0.0, "duration": 1.5083677640284403, "packet_count": 22.0, "bytes_sent": 1649.0, "bytes_received": 1124.0, "bytes_per_packet": 74.95454545454545}}, {"alert_id": "alert_074", "row_index": 9958, "time": "2025-04-06 21:24:28", "true_label": 1, "proba": 1.0, "features": ["bytes_received", "day_of_week", "bytes_sent", "duration", "destination_port"], "shap": [0.2848, 0.0909, 0.0623, 0.059, -0.0498], "is_trap": false, "selected": false, "raw": {"source_port": 39179.0, "destination_port": 23.0, "protocol": 0.0, "duration": 0.7723999179604464, "packet_count": 43.0, "bytes_sent": 870.0, "bytes_received": 1124.0, "bytes_per_packet": 20.232558139534884}}, {"alert_id": "alert_075", "row_index": 7693, "time": "2025-04-06 20:55:48", "true_label": 1, "proba": 0.93, "features": ["destination_port", "bytes_received", "day_of_week", "packet_count", "hour_of_day"], "shap": [0.1906, 0.1869, 0.0575, -0.0349, 0.0194], "is_trap": true, "selected": true, "raw": {"source_port": 17273.0, "destination_port": 3389.0, "protocol": 0.0, "duration": 1.212652459071329, "packet_count": 48.0, "bytes_sent": 566.0, "bytes_received": 1268.0, "bytes_per_packet": 11.791666666666666}}, {"alert_id": "alert_076", "row_index": 9352, "time": "2025-04-06 23:01:28", "true_label": 1, "proba": 1.0, "features": ["bytes_received", "destination_port", "day_of_week", "bytes_sent", "duration"], "shap": [0.1924, 0.1718, 0.062, 0.0281, 0.0268], "is_trap": false, "selected": false, "raw": {"source_port": 11029.0, "destination_port": 3389.0, "protocol": 0.0, "duration": 0.647243811278651, "packet_count": 38.0, "bytes_sent": 1255.0, "bytes_received": 1711.0, "bytes_per_packet": 33.026315789473685}}, {"alert_id": "alert_077", "row_index": 6521, "time": "2025-04-07 00:47:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.2445, 0.1392, 0.0912, 0.0485, -0.0263], "is_trap": false, "selected": false, "raw": {"source_port": 49372.0, "destination_port": 36865.0, "protocol": 0.0, "duration": 44.54493549611496, "packet_count": 191.0, "bytes_sent": 982137.0, "bytes_received": 4050.0, "bytes_per_packet": 5142.078534031413}}, {"alert_id": "alert_078", "row_index": 1532, "time": "2025-04-06 22:27:48", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.2014, 0.1404, 0.102, 0.0562, -0.0249], "is_trap": false, "selected": false, "raw": {"source_port": 18777.0, "destination_port": 10670.0, "protocol": 0.0, "duration": 51.4218987728386, "packet_count": 272.0, "bytes_sent": 652093.0, "bytes_received": 3362.0, "bytes_per_packet": 2397.4007352941176}}, {"alert_id": "alert_079", "row_index": 9226, "time": "2025-04-07 00:49:08", "true_label": 1, "proba": 0.99, "features": ["destination_port", "protocol", "packet_count", "bytes_sent", "duration"], "shap": [0.4321, 0.1049, -0.0561, -0.0455, 0.0372], "is_trap": true, "selected": true, "raw": {"source_port": 20579.0, "destination_port": 58098.0, "protocol": 5.0, "duration": 6.409879213580306, "packet_count": 76.0, "bytes_sent": 5015.0, "bytes_received": 8355.0, "bytes_per_packet": 65.98684210526316}}, {"alert_id": "alert_080", "row_index": 7746, "time": "2025-04-06 22:53:28", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "duration", "day_of_week", "packet_count"], "shap": [0.217, 0.1368, 0.0421, 0.0419, 0.0186], "is_trap": false, "selected": false, "raw": {"source_port": 58080.0, "destination_port": 52457.0, "protocol": 0.0, "duration": 0.0298210067022706, "packet_count": 3.0, "bytes_sent": 81.0, "bytes_received": 48.0, "bytes_per_packet": 27.0}}, {"alert_id": "alert_081", "row_index": 1150, "time": "2025-04-06 21:54:58", "true_label": 1, "proba": 1.0, "features": ["bytes_received", "destination_port", "day_of_week", "bytes_sent", "duration"], "shap": [0.1939, 0.1733, 0.0595, 0.028, 0.0252], "is_trap": false, "selected": false, "raw": {"source_port": 23740.0, "destination_port": 3389.0, "protocol": 0.0, "duration": 0.9419378633949856, "packet_count": 28.0, "bytes_sent": 1381.0, "bytes_received": 1458.0, "bytes_per_packet": 49.32142857142857}}, {"alert_id": "alert_082", "row_index": 6054, "time": "2025-04-06 22:34:38", "true_label": 1, "proba": 1.0, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "protocol"], "shap": [0.2175, 0.1694, 0.1198, -0.0693, -0.0387], "is_trap": true, "selected": true, "raw": {"source_port": 5531.0, "destination_port": 443.0, "protocol": 1.0, "duration": 0.1155050279958114, "packet_count": 1387.0, "bytes_sent": 53326.0, "bytes_received": 529.0, "bytes_per_packet": 38.447007930785865}}, {"alert_id": "alert_083", "row_index": 9955, "time": "2025-04-06 23:11:58", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "protocol", "packet_count", "bytes_received"], "shap": [0.3056, 0.1181, 0.0919, -0.0489, 0.0477], "is_trap": true, "selected": true, "raw": {"source_port": 56490.0, "destination_port": 64543.0, "protocol": 4.0, "duration": 4.034662233449156, "packet_count": 55.0, "bytes_sent": 17763.0, "bytes_received": 18096.0, "bytes_per_packet": 322.96363636363634}}, {"alert_id": "alert_084", "row_index": 7114, "time": "2025-04-07 01:37:48", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.2479, 0.1375, 0.0882, 0.0541, -0.0248], "is_trap": false, "selected": false, "raw": {"source_port": 61325.0, "destination_port": 40239.0, "protocol": 0.0, "duration": 34.88100707235676, "packet_count": 163.0, "bytes_sent": 332123.0, "bytes_received": 4294.0, "bytes_per_packet": 2037.564417177914}}, {"alert_id": "alert_085", "row_index": 6270, "time": "2025-04-06 22:50:08", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.202, 0.1404, 0.1006, 0.0569, -0.0244], "is_trap": false, "selected": false, "raw": {"source_port": 36761.0, "destination_port": 22649.0, "protocol": 0.0, "duration": 49.23535004069769, "packet_count": 247.0, "bytes_sent": 694714.0, "bytes_received": 2873.0, "bytes_per_packet": 2812.6072874493925}}, {"alert_id": "alert_086", "row_index": 905, "time": "2025-04-06 22:11:28", "true_label": 1, "proba": 1.0, "features": ["bytes_received", "day_of_week", "bytes_sent", "duration", "destination_port"], "shap": [0.2836, 0.0929, 0.0572, 0.0534, -0.0434], "is_trap": false, "selected": false, "raw": {"source_port": 27289.0, "destination_port": 22.0, "protocol": 0.0, "duration": 1.0768346908687556, "packet_count": 31.0, "bytes_sent": 1686.0, "bytes_received": 1581.0, "bytes_per_packet": 54.38709677419355}}, {"alert_id": "alert_087", "row_index": 1983, "time": "2025-04-06 21:35:58", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "protocol", "bytes_received"], "shap": [0.2401, 0.1104, 0.0763, 0.0708, -0.0259], "is_trap": false, "selected": false, "raw": {"source_port": 13154.0, "destination_port": 59050.0, "protocol": 3.0, "duration": 1.35599431323164, "packet_count": 140.0, "bytes_sent": 15020.0, "bytes_received": 8684.0, "bytes_per_packet": 107.28571428571428}}, {"alert_id": "alert_088", "row_index": 7368, "time": "2025-04-06 22:08:18", "true_label": 1, "proba": 0.98, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "day_of_week"], "shap": [0.2199, 0.1716, 0.118, -0.0721, 0.0383], "is_trap": true, "selected": true, "raw": {"source_port": 48179.0, "destination_port": 443.0, "protocol": 1.0, "duration": 0.5104965554028226, "packet_count": 2165.0, "bytes_sent": 15424.0, "bytes_received": 856.0, "bytes_per_packet": 7.124249422632794}}, {"alert_id": "alert_089", "row_index": 4269, "time": "2025-04-07 00:57:48", "true_label": 1, "proba": 0.99, "features": ["destination_port", "bytes_received", "hour_of_day", "bytes_sent", "duration"], "shap": [0.2106, 0.1953, 0.0509, 0.0364, 0.0242], "is_trap": false, "selected": false, "raw": {"source_port": 53658.0, "destination_port": 3389.0, "protocol": 0.0, "duration": 1.23606370882281, "packet_count": 47.0, "bytes_sent": 909.0, "bytes_received": 1619.0, "bytes_per_packet": 19.340425531914892}}, {"alert_id": "alert_090", "row_index": 5683, "time": "2025-04-06 23:36:28", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "day_of_week", "duration", "packet_count"], "shap": [0.2166, 0.1389, 0.0417, 0.0412, 0.0224], "is_trap": false, "selected": false, "raw": {"source_port": 61191.0, "destination_port": 44556.0, "protocol": 0.0, "duration": 0.0444182384281824, "packet_count": 3.0, "bytes_sent": 50.0, "bytes_received": 62.0, "bytes_per_packet": 16.666666666666668}}, {"alert_id": "alert_091", "row_index": 3987, "time": "2025-04-07 00:19:28", "true_label": 1, "proba": 0.99, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_per_packet"], "shap": [0.2347, 0.1238, 0.102, 0.0295, -0.0238], "is_trap": false, "selected": false, "raw": {"source_port": 3335.0, "destination_port": 64327.0, "protocol": 0.0, "duration": 21.85272441905743, "packet_count": 493.0, "bytes_sent": 136876.0, "bytes_received": 1967.0, "bytes_per_packet": 277.6389452332657}}, {"alert_id": "alert_092", "row_index": 9893, "time": "2025-04-06 22:16:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "protocol", "packet_count", "bytes_sent", "duration"], "shap": [0.3352, 0.0758, 0.066, -0.0436, 0.0343], "is_trap": true, "selected": true, "raw": {"source_port": 34684.0, "destination_port": 61408.0, "protocol": 3.0, "duration": 7.095703015628289, "packet_count": 125.0, "bytes_sent": 6504.0, "bytes_received": 13052.0, "bytes_per_packet": 52.032}}, {"alert_id": "alert_093", "row_index": 950, "time": "2025-04-07 00:13:08", "true_label": 1, "proba": 0.98, "features": ["bytes_received", "hour_of_day", "bytes_sent", "duration", "destination_port"], "shap": [0.3105, 0.0791, 0.0778, 0.0514, -0.0427], "is_trap": false, "selected": false, "raw": {"source_port": 12787.0, "destination_port": 23.0, "protocol": 0.0, "duration": 1.674613979801977, "packet_count": 38.0, "bytes_sent": 1812.0, "bytes_received": 866.0, "bytes_per_packet": 47.68421052631579}}, {"alert_id": "alert_094", "row_index": 9255, "time": "2025-04-06 21:57:58", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "bytes_received", "day_of_week"], "shap": [0.1579, 0.1306, 0.1184, 0.0736, 0.0309], "is_trap": false, "selected": false, "raw": {"source_port": 54970.0, "destination_port": 8080.0, "protocol": 1.0, "duration": 0.2891570936267063, "packet_count": 3840.0, "bytes_sent": 13870.0, "bytes_received": 449.0, "bytes_per_packet": 3.6119791666666665}}, {"alert_id": "alert_095", "row_index": 8185, "time": "2025-04-06 22:15:18", "true_label": 1, "proba": 0.98, "features": ["bytes_received", "day_of_week", "bytes_sent", "destination_port", "duration"], "shap": [0.2836, 0.0925, 0.0628, -0.0479, 0.0342], "is_trap": true, "selected": true, "raw": {"source_port": 14632.0, "destination_port": 23.0, "protocol": 0.0, "duration": 1.837344966086371, "packet_count": 22.0, "bytes_sent": 653.0, "bytes_received": 1351.0, "bytes_per_packet": 29.681818181818183}}, {"alert_id": "alert_096", "row_index": 1350, "time": "2025-04-06 21:11:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "protocol", "packet_count", "bytes_sent", "duration"], "shap": [0.3313, 0.0648, 0.0484, -0.0413, 0.0375], "is_trap": true, "selected": true, "raw": {"source_port": 46992.0, "destination_port": 50472.0, "protocol": 3.0, "duration": 8.760189342036323, "packet_count": 103.0, "bytes_sent": 7729.0, "bytes_received": 15713.0, "bytes_per_packet": 75.03883495145631}}, {"alert_id": "alert_097", "row_index": 9582, "time": "2025-04-06 22:15:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "day_of_week", "duration", "packet_count"], "shap": [0.222, 0.1359, 0.0418, 0.0408, 0.0191], "is_trap": false, "selected": false, "raw": {"source_port": 42030.0, "destination_port": 38863.0, "protocol": 0.0, "duration": 0.0927512411278548, "packet_count": 1.0, "bytes_sent": 80.0, "bytes_received": 92.0, "bytes_per_packet": 80.0}}, {"alert_id": "alert_098", "row_index": 1453, "time": "2025-04-06 22:39:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.2197, 0.1409, 0.0897, 0.051, -0.0247], "is_trap": false, "selected": false, "raw": {"source_port": 5012.0, "destination_port": 35339.0, "protocol": 0.0, "duration": 21.553264082967715, "packet_count": 167.0, "bytes_sent": 576618.0, "bytes_received": 2953.0, "bytes_per_packet": 3452.802395209581}}, {"alert_id": "alert_099", "row_index": 5627, "time": "2025-04-06 21:46:18", "true_label": 1, "proba": 1.0, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "day_of_week"], "shap": [0.2192, 0.1715, 0.121, -0.0713, 0.0387], "is_trap": true, "selected": true, "raw": {"source_port": 7433.0, "destination_port": 443.0, "protocol": 1.0, "duration": 0.3901846418905704, "packet_count": 3481.0, "bytes_sent": 61305.0, "bytes_received": 869.0, "bytes_per_packet": 17.61131858661304}}, {"alert_id": "alert_100", "row_index": 1286, "time": "2025-04-06 23:46:08", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.207, 0.1175, 0.0899, 0.0382, 0.027], "is_trap": false, "selected": false, "raw": {"source_port": 65272.0, "destination_port": 42586.0, "protocol": 0.0, "duration": 13.14835393370344, "packet_count": 139.0, "bytes_sent": 169570.0, "bytes_received": 1475.0, "bytes_per_packet": 1219.928057553957}}, {"alert_id": "alert_101", "row_index": 3138, "time": "2025-04-07 01:32:58", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "hour_of_day", "bytes_sent", "duration"], "shap": [0.2108, 0.2006, 0.0398, 0.0385, 0.0224], "is_trap": false, "selected": false, "raw": {"source_port": 37426.0, "destination_port": 3389.0, "protocol": 0.0, "duration": 1.2805142712952229, "packet_count": 31.0, "bytes_sent": 1243.0, "bytes_received": 1149.0, "bytes_per_packet": 40.096774193548384}}, {"alert_id": "alert_102", "row_index": 6322, "time": "2025-04-07 00:42:58", "true_label": 1, "proba": 0.99, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "protocol"], "shap": [0.2372, 0.1795, 0.1248, -0.0693, -0.0336], "is_trap": true, "selected": true, "raw": {"source_port": 20899.0, "destination_port": 443.0, "protocol": 1.0, "duration": 0.9068056996995362, "packet_count": 1238.0, "bytes_sent": 62415.0, "bytes_received": 316.0, "bytes_per_packet": 50.41599353796446}}, {"alert_id": "alert_103", "row_index": 4520, "time": "2025-04-06 21:17:08", "true_label": 1, "proba": 0.99, "features": ["bytes_received", "day_of_week", "bytes_sent", "duration", "destination_port"], "shap": [0.2802, 0.0889, 0.0608, 0.057, -0.0494], "is_trap": false, "selected": false, "raw": {"source_port": 50077.0, "destination_port": 23.0, "protocol": 0.0, "duration": 0.584507385170369, "packet_count": 45.0, "bytes_sent": 1416.0, "bytes_received": 1666.0, "bytes_per_packet": 31.466666666666665}}, {"alert_id": "alert_104", "row_index": 9043, "time": "2025-04-06 22:44:38", "true_label": 1, "proba": 0.99, "features": ["bytes_received", "day_of_week", "bytes_sent", "duration", "destination_port"], "shap": [0.2792, 0.0918, 0.0657, 0.0538, -0.0477], "is_trap": false, "selected": false, "raw": {"source_port": 45872.0, "destination_port": 23.0, "protocol": 0.0, "duration": 1.321474823232083, "packet_count": 19.0, "bytes_sent": 1597.0, "bytes_received": 1901.0, "bytes_per_packet": 84.05263157894737}}, {"alert_id": "alert_105", "row_index": 2389, "time": "2025-04-07 00:51:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "protocol", "duration"], "shap": [0.27, 0.1166, 0.0858, 0.0732, -0.0383], "is_trap": false, "selected": false, "raw": {"source_port": 8398.0, "destination_port": 51288.0, "protocol": 5.0, "duration": 2.4527961019708435, "packet_count": 188.0, "bytes_sent": 15865.0, "bytes_received": 9865.0, "bytes_per_packet": 84.38829787234043}}, {"alert_id": "alert_106", "row_index": 8521, "time": "2025-04-06 22:36:38", "true_label": 1, "proba": 1.0, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "day_of_week"], "shap": [0.207, 0.156, 0.1241, -0.0703, 0.0405], "is_trap": true, "selected": true, "raw": {"source_port": 64923.0, "destination_port": 443.0, "protocol": 0.0, "duration": 0.4454946856573187, "packet_count": 9664.0, "bytes_sent": 72522.0, "bytes_received": 762.0, "bytes_per_packet": 7.504346026490066}}, {"alert_id": "alert_107", "row_index": 8089, "time": "2025-04-06 21:39:28", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "duration", "day_of_week", "packet_count"], "shap": [0.218, 0.1361, 0.0423, 0.0416, 0.0181], "is_trap": false, "selected": false, "raw": {"source_port": 41359.0, "destination_port": 64560.0, "protocol": 0.0, "duration": 0.0125012904640997, "packet_count": 2.0, "bytes_sent": 44.0, "bytes_received": 80.0, "bytes_per_packet": 22.0}}, {"alert_id": "alert_108", "row_index": 6969, "time": "2025-04-06 21:32:28", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "day_of_week"], "shap": [0.1923, 0.1218, 0.0975, 0.0449, 0.0269], "is_trap": false, "selected": false, "raw": {"source_port": 23711.0, "destination_port": 19602.0, "protocol": 0.0, "duration": 54.22683086704758, "packet_count": 255.0, "bytes_sent": 449735.0, "bytes_received": 1494.0, "bytes_per_packet": 1763.6666666666667}}, {"alert_id": "alert_109", "row_index": 4449, "time": "2025-04-06 21:54:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "packet_count", "protocol", "bytes_sent", "duration"], "shap": [0.3126, 0.0875, 0.0723, -0.044, 0.043], "is_trap": true, "selected": true, "raw": {"source_port": 64950.0, "destination_port": 52772.0, "protocol": 4.0, "duration": 8.512015922135827, "packet_count": 176.0, "bytes_sent": 5166.0, "bytes_received": 13080.0, "bytes_per_packet": 29.352272727272727}}, {"alert_id": "alert_110", "row_index": 4416, "time": "2025-04-06 23:39:18", "true_label": 1, "proba": 1.0, "features": ["bytes_received", "day_of_week", "bytes_sent", "duration", "destination_port"], "shap": [0.2883, 0.0913, 0.0582, 0.052, -0.044], "is_trap": false, "selected": false, "raw": {"source_port": 8415.0, "destination_port": 22.0, "protocol": 0.0, "duration": 1.1294630220919142, "packet_count": 33.0, "bytes_sent": 1453.0, "bytes_received": 1173.0, "bytes_per_packet": 44.03030303030303}}, {"alert_id": "alert_111", "row_index": 5011, "time": "2025-04-06 23:41:58", "true_label": 1, "proba": 0.95, "features": ["bytes_received", "day_of_week", "bytes_sent", "destination_port", "duration"], "shap": [0.2791, 0.0852, 0.0529, -0.0486, 0.0462], "is_trap": true, "selected": true, "raw": {"source_port": 41035.0, "destination_port": 22.0, "protocol": 0.0, "duration": 0.5102850927046437, "packet_count": 33.0, "bytes_sent": 728.0, "bytes_received": 1529.0, "bytes_per_packet": 22.060606060606062}}, {"alert_id": "alert_112", "row_index": 7208, "time": "2025-04-06 22:02:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.2172, 0.1386, 0.0904, 0.0547, -0.0244], "is_trap": false, "selected": false, "raw": {"source_port": 28877.0, "destination_port": 52096.0, "protocol": 0.0, "duration": 32.17706705404912, "packet_count": 206.0, "bytes_sent": 879522.0, "bytes_received": 2913.0, "bytes_per_packet": 4269.52427184466}}, {"alert_id": "alert_113", "row_index": 2585, "time": "2025-04-06 23:53:38", "true_label": 1, "proba": 0.99, "features": ["bytes_received", "day_of_week", "duration", "bytes_sent", "destination_port"], "shap": [0.2785, 0.0888, 0.0604, 0.0569, -0.0505], "is_trap": false, "selected": false, "raw": {"source_port": 62148.0, "destination_port": 23.0, "protocol": 0.0, "duration": 0.5834617581454021, "packet_count": 21.0, "bytes_sent": 928.0, "bytes_received": 1437.0, "bytes_per_packet": 44.19047619047619}}, {"alert_id": "alert_114", "row_index": 4947, "time": "2025-04-06 23:01:08", "true_label": 1, "proba": 1.0, "features": ["bytes_received", "day_of_week", "bytes_sent", "duration", "destination_port"], "shap": [0.2851, 0.0914, 0.0602, 0.0593, -0.0493], "is_trap": false, "selected": false, "raw": {"source_port": 12729.0, "destination_port": 23.0, "protocol": 0.0, "duration": 0.7730694652740078, "packet_count": 40.0, "bytes_sent": 1006.0, "bytes_received": 673.0, "bytes_per_packet": 25.15}}, {"alert_id": "alert_115", "row_index": 5730, "time": "2025-04-07 01:09:48", "true_label": 1, "proba": 0.99, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "protocol"], "shap": [0.2458, 0.1971, 0.121, -0.0717, -0.0304], "is_trap": true, "selected": true, "raw": {"source_port": 29510.0, "destination_port": 443.0, "protocol": 1.0, "duration": 0.3278141669587135, "packet_count": 7327.0, "bytes_sent": 15885.0, "bytes_received": 995.0, "bytes_per_packet": 2.1680087348164325}}, {"alert_id": "alert_116", "row_index": 7108, "time": "2025-04-06 20:49:28", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "duration", "day_of_week", "hour_of_day"], "shap": [0.2199, 0.1333, 0.0431, 0.0417, 0.0183], "is_trap": false, "selected": false, "raw": {"source_port": 28098.0, "destination_port": 60497.0, "protocol": 0.0, "duration": 0.0822323465841932, "packet_count": 4.0, "bytes_sent": 75.0, "bytes_received": 98.0, "bytes_per_packet": 18.75}}, {"alert_id": "alert_117", "row_index": 2846, "time": "2025-04-06 22:16:58", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.1774, 0.1512, 0.1147, 0.0683, -0.0289], "is_trap": false, "selected": false, "raw": {"source_port": 32579.0, "destination_port": 6364.0, "protocol": 0.0, "duration": 56.79529612048013, "packet_count": 488.0, "bytes_sent": 606331.0, "bytes_received": 4381.0, "bytes_per_packet": 1242.4815573770493}}, {"alert_id": "alert_118", "row_index": 5530, "time": "2025-04-07 01:02:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "protocol", "packet_count", "duration"], "shap": [0.3107, 0.1079, 0.0603, -0.044, 0.0373], "is_trap": true, "selected": true, "raw": {"source_port": 38100.0, "destination_port": 52573.0, "protocol": 3.0, "duration": 8.697913725824773, "packet_count": 54.0, "bytes_sent": 10761.0, "bytes_received": 18648.0, "bytes_per_packet": 199.27777777777777}}, {"alert_id": "alert_119", "row_index": 9008, "time": "2025-04-06 20:28:28", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "protocol", "duration"], "shap": [0.2275, 0.1031, 0.0773, 0.0592, 0.0206], "is_trap": false, "selected": false, "raw": {"source_port": 47290.0, "destination_port": 59070.0, "protocol": 4.0, "duration": 5.186340356369878, "packet_count": 190.0, "bytes_sent": 16272.0, "bytes_received": 12913.0, "bytes_per_packet": 85.6421052631579}}, {"alert_id": "alert_120", "row_index": 5485, "time": "2025-04-07 00:41:48", "true_label": 1, "proba": 1.0, "features": ["destination_port", "packet_count", "protocol", "duration", "bytes_sent"], "shap": [0.3662, 0.0903, 0.0836, -0.0422, -0.0422], "is_trap": false, "selected": false, "raw": {"source_port": 22873.0, "destination_port": 56833.0, "protocol": 5.0, "duration": 4.113601451212528, "packet_count": 159.0, "bytes_sent": 6099.0, "bytes_received": 15573.0, "bytes_per_packet": 38.35849056603774}}, {"alert_id": "alert_121", "row_index": 5215, "time": "2025-04-07 00:07:38", "true_label": 1, "proba": 1.0, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "protocol"], "shap": [0.2373, 0.1858, 0.1295, -0.0691, -0.0361], "is_trap": true, "selected": true, "raw": {"source_port": 40910.0, "destination_port": 80.0, "protocol": 1.0, "duration": 0.8310820230463896, "packet_count": 7575.0, "bytes_sent": 83687.0, "bytes_received": 958.0, "bytes_per_packet": 11.047788778877887}}, {"alert_id": "alert_122", "row_index": 9736, "time": "2025-04-06 20:56:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.2076, 0.1406, 0.096, 0.0557, -0.0246], "is_trap": false, "selected": false, "raw": {"source_port": 51861.0, "destination_port": 16057.0, "protocol": 0.0, "duration": 28.80207999999494, "packet_count": 232.0, "bytes_sent": 760971.0, "bytes_received": 2707.0, "bytes_per_packet": 3280.0474137931033}}, {"alert_id": "alert_123", "row_index": 8129, "time": "2025-04-06 22:50:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "bytes_received", "day_of_week"], "shap": [0.1568, 0.1298, 0.1176, 0.0775, 0.031], "is_trap": false, "selected": false, "raw": {"source_port": 60901.0, "destination_port": 8080.0, "protocol": 1.0, "duration": 0.3004848121548104, "packet_count": 8777.0, "bytes_sent": 13004.0, "bytes_received": 884.0, "bytes_per_packet": 1.4815996354107326}}, {"alert_id": "alert_124", "row_index": 3515, "time": "2025-04-06 20:17:28", "true_label": 1, "proba": 0.99, "features": ["bytes_sent", "packet_count", "bytes_received", "destination_port", "day_of_week"], "shap": [0.2073, 0.1557, 0.1163, -0.0707, 0.0405], "is_trap": true, "selected": true, "raw": {"source_port": 22426.0, "destination_port": 80.0, "protocol": 0.0, "duration": 0.4627755103282357, "packet_count": 3152.0, "bytes_sent": 16860.0, "bytes_received": 155.0, "bytes_per_packet": 5.348984771573604}}, {"alert_id": "alert_125", "row_index": 2868, "time": "2025-04-07 00:45:48", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "hour_of_day", "bytes_sent", "duration"], "shap": [0.1993, 0.1965, 0.053, 0.0386, 0.0267], "is_trap": false, "selected": false, "raw": {"source_port": 28651.0, "destination_port": 3389.0, "protocol": 0.0, "duration": 0.7155311132799764, "packet_count": 14.0, "bytes_sent": 918.0, "bytes_received": 1569.0, "bytes_per_packet": 65.57142857142857}}, {"alert_id": "alert_126", "row_index": 167, "time": "2025-04-06 20:14:38", "true_label": 1, "proba": 0.94, "features": ["bytes_received", "day_of_week", "bytes_sent", "destination_port", "hour_of_day"], "shap": [0.2818, 0.0813, 0.0589, -0.0479, 0.0297], "is_trap": true, "selected": true, "raw": {"source_port": 4336.0, "destination_port": 23.0, "protocol": 0.0, "duration": 1.9297683460013593, "packet_count": 38.0, "bytes_sent": 667.0, "bytes_received": 726.0, "bytes_per_packet": 17.55263157894737}}, {"alert_id": "alert_127", "row_index": 6312, "time": "2025-04-07 00:12:18", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "bytes_received", "protocol"], "shap": [0.1697, 0.1354, 0.1159, 0.0802, -0.0305], "is_trap": false, "selected": false, "raw": {"source_port": 44583.0, "destination_port": 8080.0, "protocol": 1.0, "duration": 0.225242026962846, "packet_count": 4254.0, "bytes_sent": 49617.0, "bytes_received": 759.0, "bytes_per_packet": 11.66361071932299}}, {"alert_id": "alert_128", "row_index": 7809, "time": "2025-04-06 23:11:08", "true_label": 1, "proba": 1.0, "features": ["destination_port", "protocol", "packet_count", "duration", "bytes_sent"], "shap": [0.3344, 0.0802, 0.0575, 0.0356, -0.0339], "is_trap": false, "selected": false, "raw": {"source_port": 61401.0, "destination_port": 62845.0, "protocol": 5.0, "duration": 6.799092524209966, "packet_count": 105.0, "bytes_sent": 10000.0, "bytes_received": 6449.0, "bytes_per_packet": 95.23809523809524}}, {"alert_id": "alert_129", "row_index": 9186, "time": "2025-04-06 22:39:48", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "day_of_week"], "shap": [0.1954, 0.118, 0.1093, 0.0411, 0.0275], "is_trap": false, "selected": false, "raw": {"source_port": 33879.0, "destination_port": 13782.0, "protocol": 0.0, "duration": 57.32739986273375, "packet_count": 351.0, "bytes_sent": 170190.0, "bytes_received": 1293.0, "bytes_per_packet": 484.87179487179486}}, {"alert_id": "alert_130", "row_index": 1243, "time": "2025-04-07 00:01:28", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "protocol", "duration"], "shap": [0.2413, 0.1089, 0.0796, 0.0569, 0.0282], "is_trap": false, "selected": false, "raw": {"source_port": 35046.0, "destination_port": 53172.0, "protocol": 5.0, "duration": 7.954404167281611, "packet_count": 171.0, "bytes_sent": 15011.0, "bytes_received": 13467.0, "bytes_per_packet": 87.78362573099415}}, {"alert_id": "alert_131", "row_index": 5678, "time": "2025-04-06 21:37:58", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.1691, 0.1284, 0.106, 0.0401, 0.0346], "is_trap": false, "selected": false, "raw": {"source_port": 46705.0, "destination_port": 4881.0, "protocol": 0.0, "duration": 23.780098663693515, "packet_count": 425.0, "bytes_sent": 870810.0, "bytes_received": 1130.0, "bytes_per_packet": 2048.964705882353}}, {"alert_id": "alert_132", "row_index": 7731, "time": "2025-04-07 00:50:08", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "bytes_received"], "shap": [0.2234, 0.1433, 0.1104, 0.0601, -0.0256], "is_trap": false, "selected": false, "raw": {"source_port": 27632.0, "destination_port": 7708.0, "protocol": 0.0, "duration": 37.94013088648846, "packet_count": 440.0, "bytes_sent": 422994.0, "bytes_received": 2172.0, "bytes_per_packet": 961.35}}, {"alert_id": "alert_133", "row_index": 8251, "time": "2025-04-06 22:24:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "bytes_received", "day_of_week"], "shap": [0.153, 0.1069, 0.0937, 0.0843, 0.0324], "is_trap": false, "selected": false, "raw": {"source_port": 34266.0, "destination_port": 8080.0, "protocol": 0.0, "duration": 0.2863905362814582, "packet_count": 2760.0, "bytes_sent": 35199.0, "bytes_received": 781.0, "bytes_per_packet": 12.753260869565215}}, {"alert_id": "alert_134", "row_index": 283, "time": "2025-04-06 23:44:48", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_received", "duration", "day_of_week", "packet_count"], "shap": [0.223, 0.1347, 0.0462, 0.0417, 0.0249], "is_trap": false, "selected": false, "raw": {"source_port": 64462.0, "destination_port": 35551.0, "protocol": 0.0, "duration": 0.0441575483995715, "packet_count": 4.0, "bytes_sent": 42.0, "bytes_received": 87.0, "bytes_per_packet": 10.5}}, {"alert_id": "alert_135", "row_index": 5771, "time": "2025-04-06 21:18:38", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "duration", "day_of_week"], "shap": [0.2046, 0.1199, 0.0947, 0.0428, 0.0271], "is_trap": false, "selected": false, "raw": {"source_port": 24455.0, "destination_port": 40071.0, "protocol": 0.0, "duration": 32.692781672566596, "packet_count": 196.0, "bytes_sent": 229738.0, "bytes_received": 1800.0, "bytes_per_packet": 1172.1326530612246}}, {"alert_id": "alert_136", "row_index": 8275, "time": "2025-04-06 20:19:28", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "protocol", "duration"], "shap": [0.2294, 0.1025, 0.0749, 0.0571, 0.0262], "is_trap": false, "selected": false, "raw": {"source_port": 54588.0, "destination_port": 61479.0, "protocol": 5.0, "duration": 6.864988512570371, "packet_count": 145.0, "bytes_sent": 16010.0, "bytes_received": 11794.0, "bytes_per_packet": 110.41379310344828}}, {"alert_id": "alert_137", "row_index": 3462, "time": "2025-04-07 01:09:58", "true_label": 1, "proba": 1.0, "features": ["destination_port", "bytes_sent", "packet_count", "protocol", "duration"], "shap": [0.2448, 0.1078, 0.0819, 0.0578, 0.0262], "is_trap": false, "selected": false, "raw": {"source_port": 63368.0, "destination_port": 54982.0, "protocol": 4.0, "duration": 6.498609170870315, "packet_count": 194.0, "bytes_sent": 19573.0, "bytes_received": 10103.0, "bytes_per_packet": 100.8917525773196}}, {"alert_id": "alert_138", "row_index": 6904, "time": "2025-04-06 20:53:58", "true_label": 1, "proba": 0.97, "features": ["destination_port", "protocol", "packet_count", "bytes_sent", "duration"], "shap": [0.452, 0.1302, -0.0612, -0.0517, -0.04], "is_trap": true, "selected": true, "raw": {"source_port": 54017.0, "destination_port": 63596.0, "protocol": 3.0, "duration": 4.498228133802707, "packet_count": 76.0, "bytes_sent": 6219.0, "bytes_received": 14056.0, "bytes_per_packet": 81.82894736842105}}]}</script>
+<script>
+(function(){
+"use strict";
+const LOAN = JSON.parse(document.getElementById("loan-data").textContent);
+const NET  = JSON.parse(document.getElementById("net-data").textContent);
+
+/* ---------- tabs ---------- */
+const tabs = [["tab-overview","panel-overview"],["tab-loan","panel-loan"],["tab-net","panel-net"]];
+tabs.forEach(([t,p])=>{
+  document.getElementById(t).addEventListener("click",()=>{
+    tabs.forEach(([t2,p2])=>{
+      const on = t2===t;
+      document.getElementById(t2).setAttribute("aria-selected", on?"true":"false");
+      document.getElementById(p2).hidden = !on;
+    });
+    history.replaceState(null,"","#"+p.replace("panel-",""));
+    window.scrollTo({top:0});
+  });
+});
+document.querySelectorAll('a[data-tab]').forEach(a=>{
+  a.addEventListener("click",e=>{e.preventDefault();document.getElementById("tab-"+a.dataset.tab).click();});
+});
+const hash=(location.hash||"").replace("#","");
+if(hash==="loan"||hash==="net"){document.getElementById("tab-"+hash).click();}
+
+/* ---------- theme toggle ---------- */
+document.getElementById("themebtn").addEventListener("click",()=>{
+  const cur=document.documentElement.getAttribute("data-theme");
+  const sysDark=window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const next = cur ? (cur==="dark"?"light":"dark") : (sysDark?"light":"dark");
+  document.documentElement.setAttribute("data-theme",next);
+});
+
+/* ---------- the notebook's two orderings ---------- */
+function magnitudeOrder(features, shap){
+  return features.map((f,i)=>[f,shap[i],i])
+    .sort((a,b)=> Math.abs(b[1])-Math.abs(a[1]) || a[2]-b[2])
+    .map(r=>r[0]);
+}
+function toneOrder(features, shap){
+  const idx = features.map((f,i)=>i);
+  const pos = idx.filter(i=>shap[i]>0).sort((a,b)=> shap[b]-shap[a] || a-b);
+  const neg = idx.filter(i=>shap[i]<=0).sort((a,b)=> Math.abs(shap[a])-Math.abs(shap[b]) || a-b);
+  return pos.concat(neg).map(i=>features[i]);
+}
+const fmt = (v,d)=> (v>=0?"+":"−") + Math.abs(v).toFixed(d);   // display: real minus sign
+const fmtPy = (v,d)=> (v>=0?"+":"-") + Math.abs(v).toFixed(d);      // prompt: exactly what python emits
+
+/* ---------- shared renderers ---------- */
+function chips(features, shap, label, dec){
+  const max = Math.max.apply(null, shap.map(Math.abs)) || 1;
+  return features.map((f,i)=>{
+    const v = shap[i], w = Math.max(3, Math.round(34*Math.abs(v)/max));
+    return '<span class="chip '+(v>0?"pos":"neg")+'">'+
+      '<span class="bar '+(v>0?"pos":"neg")+'" style="width:'+w+'px"></span>'+
+      '<span>'+esc(label(f))+'</span><span class="sign">'+fmt(v,dec)+'</span></span>';
+  }).join("");
+}
+function orderCells(features, shap, label){
+  const mag = magnitudeOrder(features, shap);
+  const tone = toneOrder(features, shap);
+  const render = (arr, other, mark)=> '<div class="ord">'+arr.map((f,i)=>
+      '<span class="step'+(mark && other[i]!==f?" moved":"")+'"><span class="i">'+(i+1)+'</span>'+esc(label(f))+'</span>'
+    ).join("")+'</div>';
+  return [render(mag,tone,false), render(tone,mag,true), mag, tone];
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function trapFlag(t){
+  return t ? '<span class="flag yes">▲ Yes</span>' : '<span class="flag no">— No</span>';
+}
+
+/* ---------- prompts (mirroring the notebook verbatim) ---------- */
+const LOAN_BASE =
+  "You are an assistant that explains automated loan decisions to applicants.\n"+
+  "The decision was: {decision}.\n"+
+  "SHAP contributions of each factor (positive pushed toward approval, negative toward denial):\n"+
+  "{factors}\n"+
+  "Write a 3-4 sentence plain-English explanation of this decision that mentions every factor above exactly once. "+
+  "Do not mention SHAP or any numbers.";
+const ORDER_SUFFIX =
+  "\nIMPORTANT: Discuss the factors strictly in order of importance, "+
+  "i.e. by the absolute size of their contribution, most important first.";
+const WARM_SUFFIX =
+  "\nAlso: be warm, empathetic, and reassuring - lead with a positive, supportive tone.";
+
+function loanPrompt(cond, inst){
+  const factors = inst.features.map((f,i)=> f.replace(/_/g," ")+": "+fmtPy(inst.shap[i],2)).join("; ");
+  let t = LOAN_BASE;
+  if(cond!=="C0") t += ORDER_SUFFIX;
+  if(cond==="C2") t += WARM_SUFFIX;
+  return t.replace("{decision}", inst.decision.toUpperCase()).replace("{factors}", factors);
+}
+
+const NET_LABEL = {
+  destination_port:"destination port", source_port:"source port", bytes_sent:"bytes sent",
+  bytes_received:"bytes received", packet_count:"packet count", duration:"connection duration",
+  bytes_per_packet:"bytes per packet", protocol:"protocol", hour_of_day:"hour of day",
+  day_of_week:"day of week", source_ip_int:"source IP", destination_ip_int:"destination IP"
+};
+const NET_BASE =
+  "You are a security assistant explaining an automated network-intrusion alert to a SOC analyst.\n"+
+  "The model flagged this network flow as: {decision}.\n"+
+  "SHAP contributions of each feature (positive pushed the model toward ANOMALY, negative toward NORMAL):\n"+
+  "{factors}\n"+
+  "Write a 3-4 sentence plain-English explanation of why this flow was flagged that mentions every "+
+  "feature above exactly once. Do not mention SHAP or any numbers.";
+
+function netPrompt(cond, inst){
+  const factors = inst.features.map((f,i)=> NET_LABEL[f]+": "+fmtPy(inst.shap[i],3)).join("; ");
+  let t = NET_BASE;
+  if(cond!=="C0") t += ORDER_SUFFIX;
+  if(cond==="C2") t += WARM_SUFFIX;
+  return t.replace("{decision}", inst.decision).replace("{factors}", factors);
+}
+
+/* ---------- hover panel ---------- */
+function panelHTML(title, sub, conds, note){
+  let h = '<h3>'+esc(title)+'</h3><p class="sub">'+sub+'</p>';
+  if(note) h += '<p class="note">'+note+'</p>';
+  conds.forEach((c,i)=>{
+    h += '<details'+(i===0?" open":"")+'><summary><span>'+esc(c.name)+'</span><span class="tag">'+esc(c.tag)+'</span></summary>'+
+         '<pre><code>'+esc(c.text)+'</code></pre></details>';
+  });
+  return h;
+}
+function emptyPanel(what){
+  return '<h3>Prompts</h3><p class="sub">Hover or focus a row to see the C0 / C1 / C2 prompts for that '+what+'.</p>';
+}
+
+/* ---------- generic explorer wiring ---------- */
+function makeExplorer(cfg){
+  const body = document.getElementById(cfg.bodyId);
+  const panel = document.getElementById(cfg.panelId);
+  const count = document.getElementById(cfg.countId);
+  let pinned = null;
+  panel.innerHTML = emptyPanel(cfg.noun);
+
+  function show(inst, row){
+    panel.innerHTML = cfg.panel(inst);
+    body.querySelectorAll("tr.active").forEach(r=>r.classList.remove("active"));
+    if(row) row.classList.add("active");
+  }
+  function render(){
+    const rows = cfg.data.filter(cfg.filter);
+    count.textContent = rows.length + " of " + cfg.data.length + " " + cfg.noun + "s";
+    body.innerHTML = rows.map(cfg.row).join("");
+    Array.prototype.forEach.call(body.querySelectorAll("tr.row"), tr=>{
+      const inst = cfg.data[+tr.dataset.i];
+      const activate = ()=>{ if(!pinned) show(inst,tr); };
+      tr.addEventListener("mouseenter", activate);
+      tr.addEventListener("focus", activate);
+      tr.addEventListener("click", ()=>{
+        if(pinned===tr){ pinned=null; tr.classList.remove("pinned"); }
+        else {
+          if(pinned) pinned.classList.remove("pinned");
+          pinned=tr; tr.classList.add("pinned"); show(inst,tr);
+        }
+      });
+    });
+    if(pinned){ pinned=null; }
+  }
+  cfg.controls.forEach(id=>{
+    const el=document.getElementById(id);
+    el.addEventListener(el.tagName==="SELECT"?"change":"input", render);
+  });
+  render();
+}
+
+/* ---------- loan explorer ---------- */
+const loanLabel = f=>f.replace(/_/g," ");
+makeExplorer({
+  data: LOAN, bodyId:"loan-body", panelId:"loan-panel", countId:"loan-count", noun:"instance",
+  controls:["loan-fs","loan-dec","loan-trap","loan-q"],
+  filter:function(d){
+    const fs=document.getElementById("loan-fs").value,
+          dec=document.getElementById("loan-dec").value,
+          tp=document.getElementById("loan-trap").value,
+          q=document.getElementById("loan-q").value.trim().toLowerCase();
+    if(fs!=="all" && d.feature_set!==fs) return false;
+    if(dec!=="all" && d.decision!==dec) return false;
+    if(tp!=="all" && d.is_trap!==(tp==="yes")) return false;
+    if(q && !(d.instance_id+" "+d.features.join(" ")).toLowerCase().includes(q)) return false;
+    return true;
+  },
+  row:function(d){
+    const i = LOAN.indexOf(d);
+    const [magH, toneH] = orderCells(d.features, d.shap, loanLabel);
+    return '<tr class="row" tabindex="0" data-i="'+i+'">'+
+      '<td><strong>'+esc(d.instance_id)+'</strong><br><span class="small muted">'+esc(d.feature_set)+' · seed '+d.seed+'</span></td>'+
+      '<td>'+esc(d.decision)+'</td>'+
+      '<td>'+chips(d.features,d.shap,loanLabel,2)+'</td>'+
+      '<td>'+magH+'</td><td>'+toneH+'</td>'+
+      '<td>'+trapFlag(d.is_trap)+'</td></tr>';
+  },
+  panel:function(d){
+    const conds=[
+      {name:"C0_baseline", tag:"baseline", text: loanPrompt("C0",d)},
+      {name:(d.feature_set==="6feat"?"C1_ordering / C3_ordering_6feat":"C1_ordering"), tag:"ordering", text: loanPrompt("C1",d)},
+      {name:"C2_warm_ordering", tag:"ordering + warmth", text: loanPrompt("C2",d)}
+    ];
+    const sub = esc(d.instance_id)+" · "+esc(d.decision)+" · "+(d.is_trap?"trap":"non-trap");
+    const note = d.feature_set==="6feat"
+      ? "Six-feature instances are run as <code>C3_ordering_6feat</code>, which reuses the C1 prompt verbatim."
+      : "";
+    return panelHTML("Prompts sent to the models", sub, conds, note);
+  }
+});
+
+/* ---------- network explorer ---------- */
+const netLabel = f=>NET_LABEL[f]||f;
+const NETA = NET.alerts.map(a=>Object.assign({decision:"ANOMALY"},a));
+makeExplorer({
+  data: NETA, bodyId:"net-body", panelId:"net-panel", countId:"net-count", noun:"alert",
+  controls:["net-trap","net-sel","net-q"],
+  filter:function(d){
+    const tp=document.getElementById("net-trap").value,
+          sel=document.getElementById("net-sel").value,
+          q=document.getElementById("net-q").value.trim().toLowerCase();
+    if(tp!=="all" && d.is_trap!==(tp==="yes")) return false;
+    if(sel==="yes" && !d.selected) return false;
+    if(q && !(d.alert_id+" "+d.features.map(netLabel).join(" ")).toLowerCase().includes(q)) return false;
+    return true;
+  },
+  row:function(d){
+    const i = NETA.indexOf(d);
+    const [magH, toneH] = orderCells(d.features, d.shap, netLabel);
+    return '<tr class="row" tabindex="0" data-i="'+i+'">'+
+      '<td><strong>'+esc(d.alert_id)+'</strong><br><span class="small muted">'+esc(d.time)+
+        (d.selected?'<br><span style="color:var(--accent)">selected</span>':'')+'</span></td>'+
+      '<td>ANOMALY<br><span class="small muted num">p='+d.proba.toFixed(2)+'</span></td>'+
+      '<td>'+chips(d.features,d.shap,netLabel,3)+'</td>'+
+      '<td>'+magH+'</td><td>'+toneH+'</td>'+
+      '<td>'+trapFlag(d.is_trap)+'</td></tr>';
+  },
+  panel:function(d){
+    const conds=[
+      {name:"C0_baseline", tag:"the condition actually run", text: netPrompt("C0",d)},
+      {name:"C1_ordering", tag:"analogue — not run", text: netPrompt("C1",d)},
+      {name:"C2_warm_ordering", tag:"analogue — not run", text: netPrompt("C2",d)}
+    ];
+    const raw = d.raw;
+    const sub = esc(d.alert_id)+" · "+(d.is_trap?"trap":"non-trap")+" · "+(d.selected?"in the 50-alert run":"scanned only");
+    const note = 'Flow: '+raw.packet_count+' packets, '+raw.bytes_sent+' B sent / '+raw.bytes_received+
+      ' B received over '+raw.duration.toFixed(1)+'s to port '+raw.destination_port+
+      '.<br>The network experiment runs <strong>C0 only</strong>; C1 and C2 below apply the loan conditions’ instruction suffixes to this alert for comparison.';
+    return panelHTML("Prompts for this alert", sub, conds, note);
+  }
+});
+
+/* ---------- overview stats ---------- */
+document.getElementById("net-n").textContent = NET.alerts.length;
+document.getElementById("net-auc").textContent = NET.auc.toFixed(3);
+document.getElementById("net-prec").textContent = NET.precision_anom.toFixed(3);
+document.getElementById("net-rec").textContent = NET.recall_anom.toFixed(3);
+document.getElementById("net-flag").textContent = NET.n_flagged;
+document.getElementById("net-test").textContent = NET.n_test;
+document.getElementById("net-rate").textContent = (100*NET.n_traps/NET.alerts.length).toFixed(1)+"%";
+})();
+</script>
+</body>
+</html>
