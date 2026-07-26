@@ -178,7 +178,7 @@ footer{border-top:1px solid var(--rule);padding:22px 0 40px;color:var(--muted);f
     <h1>Valence–Magnitude Inversion</h1>
     <p class="tagline">Do LLM narrations of SHAP explanations preserve the importance ranking? Every stated fact can be correct while the <em>order</em> is silently wrong.</p>
     <div class="links">
-      <a class="primary" href="https://drive.google.com/file/d/11xksLHXSjtNmi58W8caQcoiCe3pm9tUd/view">📄 Read the paper (PDF)</a>
+      <a class="primary" href="paper.pdf">📄 Read the paper (PDF)</a>
       <a href="https://github.com/wawa3070/valence-magnitude-inversion">GitHub repo</a>
       <a href="https://github.com/wawa3070/valence-magnitude-inversion/blob/main/Inversion_Experiment.ipynb">Notebook</a>
       <a href="https://colab.research.google.com/github/wawa3070/valence-magnitude-inversion/blob/main/Inversion_Experiment.ipynb">Open in Colab</a>
@@ -197,12 +197,12 @@ footer{border-top:1px solid var(--rule);padding:22px 0 40px;color:var(--muted);f
 <!-- ─────────────────────────── OVERVIEW ─────────────────────────── -->
 <section id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
   <div class="paperhead">
-    <p class="kicker">Paper · <a href="https://drive.google.com/file/d/11xksLHXSjtNmi58W8caQcoiCe3pm9tUd/view">read the PDF →</a></p>
+    <p class="kicker">Paper · <a href="paper.pdf">read the PDF →</a></p>
     <h2 class="papertitle" style="margin-top:0">When the Story Doesn't Match the Math: Runtime Verification of LLM-Narrated SHAP Explanations</h2>
     <p class="small muted" style="margin-bottom:10px">Seven workhorse-tier models · two domains · 85 loan generations + 50 real-TreeSHAP alerts per model</p>
   </div>
 
-  <p class="lede">Production ML systems increasingly use LLMs to translate SHAP attributions into plain-English explanations for applicants, operators, and auditors. <strong>That translation step is unchecked</strong>: the sentence sounds like the math, but nothing forces it to match the math. This project documents a silent failure mode — <strong>valence–magnitude inversion</strong>: the narrative orders features by <em>tone</em> (good news first) instead of <em>importance</em>, so every stated fact is correct while the ranking is wrong — invisible to checks that only test factuality. Because the ground-truth SHAP vector is known at generation time, faithfulness can be verified automatically and nearly for free.</p>
+  <p class="lede">When a production ML system must explain a prediction to a person — a declined loan, a flagged network connection — it increasingly hands the job to a large language model: the underlying model's feature attributions (e.g. its SHAP values) go in as context, and a fluent plain-English rationale for the applicant, operator, or auditor comes out. <strong>That last step is unchecked</strong>: the sentence sounds like the math, but nothing forces it to match the math. This project documents a silent failure mode — <strong>valence–magnitude inversion</strong>: the narrative orders features by <em>tone</em> (good news first) instead of <em>importance</em>, so every stated fact is correct while the ranking is wrong — invisible to checks that only test factuality. Because the ground-truth SHAP vector is known at generation time, faithfulness can be verified automatically and nearly for free.</p>
 
   <div class="grid g2" style="margin:18px 0 6px;max-width:640px">
     <div class="stat"><div class="v">34</div><div class="k">Loan SHAP traps</div></div>
@@ -215,6 +215,8 @@ footer{border-top:1px solid var(--rule);padding:22px 0 40px;color:var(--muted);f
     <p style="margin:0 0 10px;font-style:italic">“The primary driver for your approval is your excellent Credit Score. Your Annual Income also played a positive role, though your high Debt Ratio slightly decreased your score.”</p>
     <p style="margin:0">Every fact is correct. But the attributions were <span class="eq">(Credit Score +0.45, Annual Income +0.25, Debt Ratio −0.35)</span>: <strong>by magnitude, Debt Ratio outranks Annual Income.</strong> The model ordered features by valence — good news first — not by importance. A reader who trusts the order of the prose walks away with the wrong causal picture, and no factuality-based detector fires, because nothing was fabricated.</p>
   </div>
+  <p>Using an LLM as the <strong>explanation interface</strong> for ML predictions — the layer that turns a model's decision into something a person can read — is spreading across credit scoring, security operations, and industrial monitoring. Under the hood, the LLM is typically prompted with the underlying model's feature attributions, and its narrative is precisely what a regulator, operator, or applicant reads. Unlike open-ended generation, the setting carries its own ground truth: the attribution vector is available at generation time, so verification is nearly free. It simply is not being done.</p>
+
   <p>Formally: let <span class="eq">ϕ ∈ R<sup>d</sup></span> be the SHAP values for one prediction and let <span class="eq">π*</span> rank features by <span class="eq">|ϕ<sub>j</sub>|</span> descending. A narrative induces its own ranking <span class="eq">π̂</span>, operationalized as first-mention order. Inversion occurs when <span class="eq">π̂ ≠ π*</span>. <strong>Valence–magnitude inversion</strong> is the specific, directional case where <span class="eq">π̂</span> sorts positive contributions ahead of larger-magnitude negative ones — systematic rather than random, driven by the politeness conventions of instruction-tuned models, and consequential wherever stated priority matters: adverse-action notices, incident triage, model-risk reviews.</p>
 
   <h2>What is a trap?</h2>

@@ -4,11 +4,11 @@
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/wawa3070/valence-magnitude-inversion/blob/main/Inversion_Experiment.ipynb)
 
-**📄 [Read the paper (PDF)](https://drive.google.com/file/d/11xksLHXSjtNmi58W8caQcoiCe3pm9tUd/view)** — *When the Story Doesn't Match the Math: Runtime Verification of LLM-Narrated SHAP Explanations*
+**📄 [Read the paper (PDF)](docs/paper.pdf)** — *When the Story Doesn't Match the Math: Runtime Verification of LLM-Narrated SHAP Explanations*
 
 **🔎 [Project page &amp; data explorers](https://wawa3070.github.io/valence-magnitude-inversion/)** — the paper in brief, plus interactive tables of every loan instance and every network alert (features, SHAP values, magnitude ranking, tone ordering, trap flag, and the exact prompts on hover).
 
-Systems increasingly use LLMs to turn SHAP attributions into plain-English explanations. The narrative *sounds* like the math, but nothing forces it to *match* the math: models often re-order features by **tone** (good news first) instead of **importance**. Every stated fact is correct and nothing is fabricated — so hallucination-style fact checks can't catch it — yet the ranking is silently wrong. Because the true SHAP vector is known at generation time, every narrative can be verified automatically with a cheap rank-agreement check. This repo contains the experiment harness and data behind that claim.
+When a production ML system must explain a prediction to a person — a declined loan, a flagged network connection — it increasingly hands the job to an LLM: the underlying model's feature attributions (e.g. its SHAP values) go in as context, and a fluent plain-English rationale for the applicant, operator, or auditor comes out. That last step is unchecked: the narrative *sounds* like the math, but nothing forces it to *match* the math. Models often re-order features by **tone** (good news first) instead of **importance**. Every stated fact is correct and nothing is fabricated — so hallucination-style fact checks can't catch it — yet the ranking is silently wrong. Because the true SHAP vector is known at generation time, every narrative can be verified automatically with a cheap rank-agreement check. This repo contains the experiment harness and data behind that claim.
 
 ## Contents
 
