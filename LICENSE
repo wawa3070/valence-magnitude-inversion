@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 Sydney
+Copyright (c) 2026 Sydney (wawa3070)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,11 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+Note: this license covers the code and notebook in this repository. The
+dataset data/network_traffic.csv originates from "Synthetic Network Traffic
+Dataset for Anomaly Detection Using Machine Learning in SDN Environments"
+(Mendeley Data, DOI: 10.17632/4pnwdgt7b7.1) and remains subject to its own
+terms; see README.md for the citation.
