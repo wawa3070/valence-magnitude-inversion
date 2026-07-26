@@ -58,6 +58,8 @@ h1{font-size:clamp(24px,3.4vw,36px);line-height:1.15;margin:0 0 8px;letter-spaci
   padding:5px 11px;border-radius:999px;
 }
 .links a:hover{color:var(--ink);border-color:var(--muted)}
+.links a.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.links a.primary:hover{color:#fff;border-color:var(--accent);filter:brightness(1.08)}
 nav.tabs{display:flex;gap:2px;flex-wrap:wrap}
 nav.tabs button{
   font:inherit;font-size:14px;font-weight:500;color:var(--ink-2);
@@ -176,7 +178,7 @@ footer{border-top:1px solid var(--rule);padding:22px 0 40px;color:var(--muted);f
     <h1>Valence–Magnitude Inversion</h1>
     <p class="tagline">Do LLM narrations of SHAP explanations preserve the importance ranking? Every stated fact can be correct while the <em>order</em> is silently wrong.</p>
     <div class="links">
-      <a href="https://drive.google.com/file/d/11xksLHXSjtNmi58W8caQcoiCe3pm9tUd/view">Paper (PDF)</a>
+      <a class="primary" href="https://drive.google.com/file/d/11xksLHXSjtNmi58W8caQcoiCe3pm9tUd/view">📄 Read the paper (PDF)</a>
       <a href="https://github.com/wawa3070/valence-magnitude-inversion">GitHub repo</a>
       <a href="https://github.com/wawa3070/valence-magnitude-inversion/blob/main/Inversion_Experiment.ipynb">Notebook</a>
       <a href="https://colab.research.google.com/github/wawa3070/valence-magnitude-inversion/blob/main/Inversion_Experiment.ipynb">Open in Colab</a>
@@ -195,7 +197,7 @@ footer{border-top:1px solid var(--rule);padding:22px 0 40px;color:var(--muted);f
 <!-- ─────────────────────────── OVERVIEW ─────────────────────────── -->
 <section id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
   <div class="paperhead">
-    <p class="kicker">Paper</p>
+    <p class="kicker">Paper · <a href="https://drive.google.com/file/d/11xksLHXSjtNmi58W8caQcoiCe3pm9tUd/view">read the PDF →</a></p>
     <h2 class="papertitle" style="margin-top:0">When the Story Doesn't Match the Math: Runtime Verification of LLM-Narrated SHAP Explanations</h2>
     <p class="small muted" style="margin-bottom:10px">Seven workhorse-tier models · two domains · 85 loan generations + 50 real-TreeSHAP alerts per model</p>
   </div>
