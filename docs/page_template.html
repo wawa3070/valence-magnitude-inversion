@@ -170,6 +170,10 @@ footer{border-top:1px solid var(--rule);padding:22px 0 40px;color:var(--muted);f
 .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 14px;font-size:13px;margin:0 0 10px}
 .kv dt{color:var(--muted)}
 .kv dd{margin:0}
+details.ex{margin:4px 0 4px 12px}
+details.ex summary .tag.ok{color:var(--muted)}
+details.ex summary .tag.bad{color:var(--accent)}
+.extext{white-space:pre-wrap;font-size:.85em;line-height:1.5;padding:8px 12px;background:var(--code-bg);border-radius:8px;margin:6px 0;overflow-wrap:anywhere}
 </style>
 </head>
 <body>
@@ -381,7 +385,7 @@ def is_trap(shap_vals):
 
   <h2>Discussion</h2>
   <p>Prompting is mitigation, and an unreliable one: the ordering instruction did nothing for SmolLM3-3B and only partly worked for GLM-5.2 and Claude Haiku 4.5, with warmth eroding both. Nor is faithfulness fixed within a model. Because the models under study are exactly the fast workhorse tier that per-decision narration deploys, these are the operative failure rates, not a worst case. A dependable system therefore needs to know whether <em>this</em> output is faithful — and the check costs one regex pass and one statistic per output.</p>
-  <p><strong>Limitations.</strong> First-mention order proxies claimed importance; the loan vectors are synthetic (the network case study, by contrast, scores real per-alert TreeSHAP from a detector trained on synthetic SDN traffic); the uncertainty tripwire is proposed but not evaluated; and the stress conditions C1/C2 have so far been run on the loan domain only, with the network-domain replication in progress.</p>
+  <p><strong>Limitations.</strong> First-mention order proxies claimed importance; the loan vectors are synthetic (the network case study, by contrast, scores real per-alert TreeSHAP from a detector trained on synthetic SDN traffic); the uncertainty tripwire is proposed but not evaluated; the network C1/C2 stress test (Jul 26) repaired nearly every model; and a Sept 2026 shuffled-listing control on four successor models showed much of the apparent baseline faithfulness on magnitude-ordered listings is input-order preservation.</p>
 
   <h2>Data &amp; provenance</h2>
   <div class="grid g2">
@@ -456,7 +460,7 @@ def is_trap(shap_vals):
 <section id="panel-net" role="tabpanel" aria-labelledby="tab-net" hidden>
   <h2 style="margin-top:6px">Network traffic explorer</h2>
   <p>Real per-alert TreeSHAP from <code>data/network_traffic.csv</code>. The notebook's §3 pipeline is reproduced exactly — Random Forest + SMOTE (<code>random_state=42</code>), a 10% stratified test split, TreeSHAP on the anomaly class, top-5 drivers per alert — then the seed-42 shuffled list of predicted anomalies is scanned until 50 traps are collected. All <span id="net-n">139</span> scanned alerts are listed here; the 50 that entered the experiment are marked <em>selected</em>.</p>
-  <p class="hint"><strong>Hover</strong> (or focus with <kbd>Tab</kbd>) a row for the prompts. <code>C0</code> is the prompt actually used — the network experiment runs C0 only; <code>C1</code>/<code>C2</code> are shown as the loan conditions' instruction suffixes applied to this alert, for comparison. <strong>Click</strong> to pin.</p>
+  <p class="hint"><strong>Hover</strong> (or focus with <kbd>Tab</kbd>) a row for the prompts - <code>C0</code>, <code>C1_ordering</code> and <code>C2_urgent_ordering</code> are the exact prompts run on Jul 26. <strong>Selected</strong> alerts also carry every model’s real narrative under each condition: <strong>click</strong> to pin the row, then expand a model in the panel.</p>
   <div class="legend">
     <span class="k"><span class="sw pos"></span> positive SHAP (toward ANOMALY)</span>
     <span class="k"><span class="sw neg"></span> negative SHAP (toward NORMAL)</span>
@@ -501,6 +505,7 @@ def is_trap(shap_vals):
 
 <script id="loan-data" type="application/json">__LOAN_JSON__</script>
 <script id="net-data" type="application/json">__NET_JSON__</script>
+<script id="net-narr-data" type="application/json">__NET_NARR_JSON__</script>
 <script>
 (function(){
 "use strict";
@@ -608,12 +613,18 @@ const NET_BASE =
   "Write a 3-4 sentence plain-English explanation of why this flow was flagged that mentions every "+
   "feature above exactly once. Do not mention SHAP or any numbers.";
 
+const NET_ORDER_TXT =
+  " Discuss the features in strict order of decreasing absolute contribution - "+
+  "the largest-magnitude driver first - regardless of whether it pushed toward ANOMALY or NORMAL.";
+const NET_URGENT_TXT =
+  " The analyst is triaging a live queue of alerts: lead with the clearest indicators "+
+  "of compromise so they can act immediately, and keep the tone urgent and decisive.";
 function netPrompt(cond, inst){
   const factors = inst.features.map((f,i)=> NET_LABEL[f]+": "+fmtPy(inst.shap[i],3)).join("; ");
-  let t = NET_BASE;
-  if(cond!=="C0") t += ORDER_SUFFIX;
-  if(cond==="C2") t += WARM_SUFFIX;
-  return t.replace("{decision}", inst.decision).replace("{factors}", factors);
+  let t = NET_BASE.replace("{decision}", inst.decision).replace("{factors}", factors);
+  if(cond!=="C0") t += NET_ORDER_TXT;
+  if(cond==="C2") t += NET_URGENT_TXT;
+  return t;
 }
 
 /* ---------- hover panel ---------- */
@@ -709,9 +720,33 @@ makeExplorer({
   }
 });
 
+/* ---------- real narratives per selected alert (Jul 26 run) ---------- */
+const NETNARR = JSON.parse(document.getElementById("net-narr-data").textContent);
+function netExamples(d){
+  if(d.selIdx===undefined || d.selIdx<0) return "";
+  const rec = NETNARR.byIdx[String(d.selIdx)];
+  if(!rec) return "";
+  let h = '<h3 style="margin-top:18px">Real narratives for this alert</h3>'+
+    '<p class="sub">Every model\u2019s actual output for this alert (Jul 26 run) \u00b7 \u2717 inverted = strict mention order \u2260 true |SHAP| order \u00b7 tone = exactly good-news-first. SmolLM3-3B emits its reasoning inline; the scorer reads the full text.</p>';
+  NETNARR.conds.forEach((c,ci)=>{
+    const rows = rec[c]; if(!rows || !rows.length) return;
+    const ninv = rows.filter(r=>!r[1]).length;
+    h += '<details'+(ci===0?" open":"")+'><summary><span>'+esc(c)+' \u00b7 narratives</span><span class="tag">'+ninv+'/'+rows.length+' inverted</span></summary>';
+    rows.forEach(r=>{
+      const v = r[1] ? '\u2713 faithful' : ('\u2717 inverted'+(r[2] ? ' \u00b7 tone-ordered' : ''));
+      h += '<details class="ex"><summary><span>'+esc(NETNARR.models[r[0]])+'</span><span class="tag '+(r[1]?"ok":"bad")+'">'+v+'</span></summary>'+
+           '<div class="extext">'+esc(r[3])+'</div></details>';
+    });
+    h += '</details>';
+  });
+  return h;
+}
+
 /* ---------- network explorer ---------- */
 const netLabel = f=>NET_LABEL[f]||f;
 const NETA = NET.alerts.map(a=>Object.assign({decision:"ANOMALY"},a));
+let __selk = 0;
+NETA.forEach(a=>{ a.selIdx = a.selected ? __selk++ : -1; });
 makeExplorer({
   data: NETA, bodyId:"net-body", panelId:"net-panel", countId:"net-count", noun:"alert",
   controls:["net-trap","net-sel","net-q"],
@@ -737,16 +772,16 @@ makeExplorer({
   },
   panel:function(d){
     const conds=[
-      {name:"C0_baseline", tag:"the condition actually run", text: netPrompt("C0",d)},
-      {name:"C1_ordering", tag:"analogue — not run", text: netPrompt("C1",d)},
-      {name:"C2_warm_ordering", tag:"analogue — not run", text: netPrompt("C2",d)}
+      {name:"C0_baseline", tag:"run Jul 26 + Sept 20", text: netPrompt("C0",d)},
+      {name:"C1_ordering", tag:"run Jul 26 + Sept 20", text: netPrompt("C1",d)},
+      {name:"C2_urgent_ordering", tag:"run Jul 26 + Sept 20", text: netPrompt("C2",d)}
     ];
     const raw = d.raw;
     const sub = esc(d.alert_id)+" · "+(d.is_trap?"trap":"non-trap")+" · "+(d.selected?"in the 50-alert run":"scanned only");
     const note = 'Flow: '+raw.packet_count+' packets, '+raw.bytes_sent+' B sent / '+raw.bytes_received+
       ' B received over '+raw.duration.toFixed(1)+'s to port '+raw.destination_port+
-      '.<br>The network experiment runs <strong>C0 only</strong>; C1 and C2 below apply the loan conditions’ instruction suffixes to this alert for comparison.';
-    return panelHTML("Prompts for this alert", sub, conds, note);
+      '.<br>C1 adds the strict-ordering sentence and C2 adds the urgency pull on top (the SOC analog of loan warmth) - both run Jul 26 on all seven models. The Sept 2026 refresh reran C0/C1/C2 plus a shuffled-listing control on four successor models.';
+    return panelHTML("Prompts for this alert", sub, conds, note) + netExamples(d);
   }
 });
 

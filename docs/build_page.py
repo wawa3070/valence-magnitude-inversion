@@ -131,11 +131,41 @@ def build_network():
             "n_test": int(len(yte)), "n_flagged": int(pred.sum()), "alerts": alerts}
 
 
+
+# ---------------- real narratives (July 26 network run; committed CSVs) ----------------
+NARR_ORDER = ["SmolLM3-3B", "gemini-3.6-flash", "GLM-5.2", "Claude Haiku 4.5",
+              "Kimi K3", "Qwen 3.7 Max", "GPT-5.6 Luna"]
+NARR_DISPLAY = {"gemini-3.6-flash": "Gemini 3.6 Flash"}
+NARR_CONDS = ["C0_baseline", "C1_ordering", "C2_urgent_ordering"]
+
+
+def build_narratives():
+    df = pd.concat([pd.read_csv(os.path.join(DATA, "net50_c0_narratives.csv")),
+                    pd.read_csv(os.path.join(DATA, "net50_c12_narratives.csv"))], ignore_index=True)
+    tob = lambda x: 1 if str(x) in ("True", "1", "1.0") else 0
+    by_idx = {}
+    for k in range(NET_N_TRAPS):
+        rec = {}
+        for c in NARR_CONDS:
+            rows = []
+            for mi, m in enumerate(NARR_ORDER):
+                g = df[(df.model == m) & (df.condition == c) & (df.idx == k)]
+                if len(g):
+                    r = g.iloc[0]
+                    rows.append([mi, tob(r.faithful), tob(r.tone_ordered), str(r.narrative)])
+            if rows:
+                rec[c] = rows
+        by_idx[str(k)] = rec
+    print(f"narratives: {sum(len(v.get(c, [])) for v in by_idx.values() for c in NARR_CONDS)} across {len(by_idx)} selected alerts")
+    return {"models": [NARR_DISPLAY.get(m, m) for m in NARR_ORDER], "conds": NARR_CONDS, "byIdx": by_idx}
+
+
 def main():
     loan = json.dumps(build_loan())
     net = json.dumps(build_network())
+    narr = json.dumps(build_narratives(), ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     tpl = open(os.path.join(DOCS, "page_template.html")).read()
-    html = tpl.replace("__LOAN_JSON__", loan).replace("__NET_JSON__", net)
+    html = tpl.replace("__LOAN_JSON__", loan).replace("__NET_JSON__", net).replace("__NET_NARR_JSON__", narr)
     out = os.path.join(DOCS, "index.html")
     with open(out, "w") as f:
         f.write(html)
