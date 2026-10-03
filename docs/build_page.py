@@ -139,12 +139,24 @@ NARR_DISPLAY = {"gemini-3.6-flash": "Gemini 3.6 Flash"}
 NARR_CONDS = ["C0_baseline", "C1_ordering", "C2_urgent_ordering"]
 
 
-def build_narratives():
+def build_narratives(sel_alerts):
     df = pd.concat([pd.read_csv(os.path.join(DATA, "net50_c0_narratives.csv")),
                     pd.read_csv(os.path.join(DATA, "net50_c12_narratives.csv"))], ignore_index=True)
     tob = lambda x: 1 if str(x) in ("True", "1", "1.0") else 0
+    # Map July run idx -> this build's selected-alert position by (features, shap)
+    # signature: the run's instances are the committed data/net50_instances.json;
+    # library-version drift can reorder or replace a few tail traps, so positional
+    # keys are NOT safe (that bug shipped once - keep this matching).
+    with open(os.path.join(DATA, "net50_instances.json")) as fh:
+        run_inst = json.load(fh)
+    def _sig(f, s):
+        return tuple((x, round(float(v), 4)) for x, v in zip(f, s))
+    page_by_sig = {_sig(a["features"], a["shap"]): k for k, a in enumerate(sel_alerts)}
     by_idx = {}
     for k in range(NET_N_TRAPS):
+        page_k = page_by_sig.get(_sig(run_inst[k]["features"], run_inst[k]["shap"]))
+        if page_k is None:
+            continue  # this July trap is not in the rebuilt page's selection
         rec = {}
         for c in NARR_CONDS:
             rows = []
@@ -155,15 +167,16 @@ def build_narratives():
                     rows.append([mi, tob(r.faithful), tob(r.tone_ordered), str(r.narrative)])
             if rows:
                 rec[c] = rows
-        by_idx[str(k)] = rec
+        by_idx[str(page_k)] = rec
     print(f"narratives: {sum(len(v.get(c, [])) for v in by_idx.values() for c in NARR_CONDS)} across {len(by_idx)} selected alerts")
     return {"models": [NARR_DISPLAY.get(m, m) for m in NARR_ORDER], "conds": NARR_CONDS, "byIdx": by_idx}
 
 
 def main():
     loan = json.dumps(build_loan())
-    net = json.dumps(build_network())
-    narr = json.dumps(build_narratives(), ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    net_data = build_network()
+    net = json.dumps(net_data)
+    narr = json.dumps(build_narratives([a for a in net_data["alerts"] if a["selected"]]), ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     tpl = open(os.path.join(DOCS, "page_template.html")).read()
     html = tpl.replace("__LOAN_JSON__", loan).replace("__NET_JSON__", net).replace("__NET_NARR_JSON__", narr)
     out = os.path.join(DOCS, "index.html")
